@@ -41,6 +41,22 @@ Po uruchomieniu:
 docker compose down
 ```
 
+### Publiczny link przez Cloudflare Tunnel (darmowy, bez konfiguracji)
+
+Frontend automatycznie przekazuje zapytania `/api/v1/*` do backendu, więc **jeden tunel** wystawia całą aplikację (frontend + API) bez problemów z CORS:
+
+```bash
+docker compose --profile tunnel up --build
+```
+
+Po uruchomieniu w logach usługi `cloudflared` pojawi się publiczny link `https://<losowa-nazwa>.trycloudflare.com` (można go też podejrzeć przez `docker compose logs cloudflared`).
+
+> Jeśli masz własny stały tunel (Named Tunnel w Cloudflare Zero Trust z publiczną domeną skierowaną na `http://frontend:3000`):
+> ```bash
+> CLOUDFLARE_TUNNEL_TOKEN=<twój_token> docker compose --profile tunnel-named up --build -d
+> ```
+> Zatrzymanie z profilem tunelu: `docker compose --profile tunnel down`.
+
 ## Informacja o wykorzystaniu narzędzi AI (HackNation 2026)
 
 Zgodnie z wymogami regulaminowymi zadania konkursowego ZUS (§ 4 oraz § 9) informujemy, że podczas projektowania, implementacji, audytu prawnego względem dokumentacji źródłowej z folderu `docs/` oraz tworzenia testów automatycznych wykorzystano narzędzia wspomagania programowania oparte na generatywnej sztucznej inteligencji (asystenci AI). Cała logika obliczeniowa, szablony dokumentów oraz parser PDF w działającej aplikacji działają w sposób w pełni deterministyczny (bez wywołań zewnętrznych modeli LLM w runtime) i są weryfikowane zestawem testów automatycznych `pytest`.
