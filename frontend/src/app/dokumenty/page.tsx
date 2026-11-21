@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Download, ExternalLink, FileText, Printer } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { useUser } from "@/components/UserContext";
@@ -72,8 +72,18 @@ export default function DocumentsPage() {
   const [notes, setNotes] = useState("");
 
   const [submission, setSubmission] = useState<ApplicationSubmissionResponse | null>(null);
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
+  const pdfFrameRef = useRef<HTMLIFrameElement | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    return () => {
+      if (pdfPreviewUrl) {
+        URL.revokeObjectURL(pdfPreviewUrl);
+      }
+    };
+  }, [pdfPreviewUrl]);
 
   useEffect(() => {
     api.getParameters().then(setLegalParams).catch(() => setLegalParams(null));
@@ -153,6 +163,13 @@ export default function DocumentsPage() {
     try {
       const res = await api.submitApplication(buildPayload());
       setSubmission(res);
+      // Od razu generujemy ten sam plik PDF do podglądu 1:1, drukowania i pobierania
+      const pdfBlob = await api.downloadApplicationPdf(buildPayload(res.reference_number));
+      const nextUrl = URL.createObjectURL(pdfBlob);
+      setPdfPreviewUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return nextUrl;
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Nie udało się wygenerować wniosku");
     } finally {
@@ -160,11 +177,30 @@ export default function DocumentsPage() {
     }
   };
 
+  const handlePrintPdf = () => {
+    if (pdfFrameRef.current?.contentWindow) {
+      pdfFrameRef.current.contentWindow.focus();
+      pdfFrameRef.current.contentWindow.print();
+      return;
+    }
+    if (pdfPreviewUrl) {
+      window.open(pdfPreviewUrl, "_blank", "noopener,noreferrer");
+      return;
+    }
+    window.print();
+  };
+
   const handleDownloadPdf = async () => {
     if (!submission) return;
     setError(null);
     try {
-      // Przekazujemy ten sam numer referencyjny co w podglądzie na ekranie i w nazwie pliku
+      if (pdfPreviewUrl) {
+        const a = document.createElement("a");
+        a.href = pdfPreviewUrl;
+        a.download = `${submission.reference_number}.pdf`;
+        a.click();
+        return;
+      }
       const pdfBlob = await api.downloadApplicationPdf(buildPayload(submission.reference_number));
       const url = URL.createObjectURL(pdfBlob);
       const a = document.createElement("a");
@@ -609,7 +645,7 @@ export default function DocumentsPage() {
                 <div className="flex gap-2">
                   <button
                     type="button"
-                    onClick={() => window.print()}
+                    onClick={handlePrintPdf}
                     className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-[#1e3328]"
                   >
                     <Printer className="h-3.5 w-3.5" />
@@ -626,9 +662,22 @@ export default function DocumentsPage() {
                 </div>
               </div>
 
-              <div className="printable-document mt-4 rounded-xl border border-slate-300 bg-white p-6 font-serif text-[13px] leading-relaxed text-slate-900 shadow-inner">
-                <pre className="whitespace-pre-wrap font-serif">{submission.generated_document_text}</pre>
-              </div>
+              {pdfPreviewUrl ? (
+                <div className="mt-4 overflow-hidden rounded-xl border border-slate-300 bg-white shadow-inner">
+                  <iframe
+                    ref={pdfFrameRef}
+                    src={`${pdfPreviewUrl}#toolbar=0&navpanes=0`}
+                    title="Podgląd wygenerowanego dokumentu PDF"
+                    className="h-[680px] w-full bg-white"
+                  />
+                </div>
+              ) : (
+                <div className="printable-document mt-4 rounded-xl border border-slate-300 bg-white p-6 font-serif text-[13px] leading-relaxed text-slate-900 shadow-inner">
+                  <pre className="whitespace-pre-wrap font-serif">
+                    {submission.generated_document_text}
+                  </pre>
+                </div>
+              )}
             </div>
           )}
         </section>
