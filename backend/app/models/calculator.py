@@ -33,11 +33,18 @@ class TerminationReason(str, Enum):
     POST_EMPLOYMENT_ART7 = "post_employment_art7"
 
 
+class WaitingPeriodExemptionReason(str, Enum):
+    NONE = "none"
+    MANDATORY_10_YEARS = "mandatory_10_years"  # Art. 4 ust. 3 pkt 3 (wyłącznie ubezpieczeni obowiązkowo)
+    GRADUATE_90_DAYS = "graduate_90_days"  # Art. 4 ust. 3 pkt 1 (obowiązkowo i dobrowolnie)
+    COMMUTE_ACCIDENT = "commute_accident"  # Art. 4 ust. 3 pkt 2 (obowiązkowo i dobrowolnie)
+
+
 class IndividualBaseCalculationRequest(BaseModel):
     insurance_title: InsuranceTitle = InsuranceTitle.UOP
     mode: str = Field(
         "uop_12m",
-        description="Tryb wyliczenia: 'uop_12m', 'previous_benefit' (art. 43), 'jdg_art48a' (art. 48/48a)",
+        description="Tryb wyliczenia: 'uop_12m', 'previous_benefit' (art. 43), 'jdg_art48a' (art. 48/48a/49)",
     )
     monthly_gross_salaries: list[float] = Field(
         default_factory=list,
@@ -53,7 +60,7 @@ class IndividualBaseCalculationRequest(BaseModel):
     )
     fte_fraction: float = Field(1.0, gt=0.0, le=1.0)
     previous_benefit_base: Optional[float] = Field(None, ge=0)
-    jdg_insured_months: int = Field(12, ge=1, le=12)
+    jdg_insured_months: int = Field(12, ge=0, le=12)
     jdg_declared_monthly_gross: float = Field(6200.0, ge=0)
     jdg_min_monthly_gross: Optional[float] = Field(None, ge=0)
     jdg_preferential_zus: bool = Field(
@@ -79,7 +86,11 @@ class PregnancyBenefitRequest(BaseModel):
     insurance_days: int = Field(180, ge=0)
     waiting_period_exempt: bool = Field(
         False,
-        description="Zwolnienie z okresu wyczekiwania (art. 4 ust. 3 — 10-letni staż dotyczy wyłącznie ubezpieczenia obowiązkowego)",
+        description="Zwolnienie z okresu wyczekiwania (kompatybilność wsteczna — domyślnie art. 4 ust. 3 pkt 3: 10 lat stażu dla UoP)",
+    )
+    waiting_period_exemption_reason: WaitingPeriodExemptionReason = Field(
+        WaitingPeriodExemptionReason.NONE,
+        description="Konkretna przesłanka zwolnienia z okresu wyczekiwania z art. 4 ust. 3 ustawy zasiłkowej",
     )
     gross_monthly_salary: float = Field(6500.0, ge=0)
     fte_fraction: float = Field(1.0, gt=0.0, le=1.0)
@@ -95,6 +106,8 @@ class PregnancyBenefitRequest(BaseModel):
 class PregnancyBenefitResponse(BaseModel):
     eligible_sickness_benefit: bool
     eligible_maternity_equivalent: bool
+    eligible_post_birth_maternity_art30: bool = False
+    payout_suspended_due_to_debt: bool = False
     waiting_period_required_days: int
     waiting_period_met: bool
     benefit_rate_percent: float
@@ -106,6 +119,7 @@ class PregnancyBenefitResponse(BaseModel):
     rehabilitation_daily_gross: float = 0.0
     rehabilitation_max_days: int = 360
     max_benefit_days: int
+    benefit_duration_label: Optional[str] = None
     employer_pay_days: int
     payer: str
     warnings: list[str]
@@ -138,6 +152,10 @@ class IntegratedCalculatorRequest(BaseModel):
     gestation_week: Optional[int] = Field(None, ge=20, le=42)
     birth_weight_grams: Optional[int] = Field(None, ge=300, le=6000)
     hospitalization_weeks: int = Field(0, ge=0, le=20)
+    full_term_hospitalization_condition_met: bool = Field(
+        True,
+        description="Dla urodzenia po 37. tyg. (masa >1000 g): czy pobyt trwał ≥2 kolejne dni z 1. dniem w przedziale 5.–28. dnia po porodzie (art. 180² § 1 pkt 3 KP)",
+    )
 
     # Podstawa wymiaru
     gross_monthly_salary: float = Field(7000.0, ge=0)
@@ -169,13 +187,16 @@ class IntegratedCalculatorRequest(BaseModel):
 
     # Płatnik i zadłużenie JDG
     employer_insured_count: int = Field(25, ge=0)
+    second_parent_employer_insured_count: Optional[int] = Field(None, ge=0)
     contribution_debt_pln: float = Field(0.0, ge=0)
+    second_parent_contribution_debt_pln: float = Field(0.0, ge=0)
 
 
 class LeaveBreakdownItem(BaseModel):
     label: str
     parent: str
     weeks: float
+    days: Optional[int] = None
     rate_percent: float
     monthly_gross_pln: float
     total_gross_pln: float
@@ -185,6 +206,7 @@ class LeaveBreakdownItem(BaseModel):
 class IntegratedCalculatorResponse(BaseModel):
     eligible: bool
     ineligibility_reason: Optional[str] = None
+    payout_suspended_due_to_debt: bool = False
     benefit_base_parent1: float
     benefit_base_parent2: float
     benefit_base_explanation: Optional[str] = None

@@ -2,6 +2,11 @@ export type InsuranceTitle = "uop" | "zlecenie" | "jdg" | "none";
 export type BenefitScenario = "birth" | "adoption" | "foster";
 export type FosterFamilyType = "non_professional" | "professional";
 export type PaymentVariant = "100_70" | "81_5";
+export type WaitingPeriodExemptionReason =
+  | "none"
+  | "mandatory_10_years"
+  | "graduate_90_days"
+  | "commute_accident";
 
 export interface SimulatedUserProfile {
   id: string;
@@ -59,6 +64,8 @@ export interface IndividualBaseCalculationResponse {
 export interface PregnancyBenefitResponse {
   eligible_sickness_benefit: boolean;
   eligible_maternity_equivalent: boolean;
+  eligible_post_birth_maternity_art30?: boolean;
+  payout_suspended_due_to_debt?: boolean;
   waiting_period_required_days: number;
   waiting_period_met: boolean;
   benefit_rate_percent: number;
@@ -70,6 +77,7 @@ export interface PregnancyBenefitResponse {
   rehabilitation_daily_gross: number;
   rehabilitation_max_days: number;
   max_benefit_days: number;
+  benefit_duration_label?: string | null;
   employer_pay_days: number;
   payer: string;
   warnings: string[];
@@ -80,6 +88,7 @@ export interface LeaveBreakdownItem {
   label: string;
   parent: string;
   weeks: number;
+  days?: number | null;
   rate_percent: number;
   monthly_gross_pln: number;
   total_gross_pln: number;
@@ -89,6 +98,7 @@ export interface LeaveBreakdownItem {
 export interface IntegratedCalculatorResponse {
   eligible: boolean;
   ineligibility_reason?: string | null;
+  payout_suspended_due_to_debt?: boolean;
   benefit_base_parent1: number;
   benefit_base_parent2: number;
   benefit_base_explanation?: string | null;

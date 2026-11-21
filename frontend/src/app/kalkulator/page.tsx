@@ -24,6 +24,19 @@ const MATERNITY_WEEKS_BY_CHILDREN: Record<number, number> = {
   6: 37,
 };
 
+function parsePolishSalaryList(input: string): number[] {
+  // Obsługuje formaty: "7 500,50; 8 000,00", "7 500,50, 8 000,00", "7500, 8000", "800, 900" oraz nowe linie
+  const normalized = input
+    .replace(/\u00A0/g, " ")
+    .replace(/(\d),(\d{1,2})(?=\s*(?:[,;\n]|$))/g, "$1.$2");
+  return normalized
+    .split(/[;\n,]+/)
+    .map((chunk) => chunk.replace(/\s+/g, "").trim())
+    .filter((chunk) => chunk.length > 0)
+    .map((s) => Number(s))
+    .filter((n) => !Number.isNaN(n) && n > 0);
+}
+
 export default function IntegratedCalculatorPage() {
   const { user } = useUser();
 
@@ -38,7 +51,16 @@ export default function IntegratedCalculatorPage() {
     user?.insurance_title || "uop"
   );
   const [insuredOnDate, setInsuredOnDate] = useState(user ? user.has_sickness_insurance : true);
+  const [fteFraction, setFteFraction] = useState(1.0);
+  const [singleParent, setSingleParent] = useState(false);
   const [secondParentInsuredClaim, setSecondParentInsuredClaim] = useState(false);
+  const [secondParentInsuranceTitle, setSecondParentInsuranceTitle] =
+    useState<InsuranceTitle>("uop");
+  const [secondParentHasSickness, setSecondParentHasSickness] = useState(true);
+  const [secondParentFteFraction, setSecondParentFteFraction] = useState(1.0);
+  const [secondParentEmployerCount, setSecondParentEmployerCount] = useState(25);
+  const [secondParentDebt, setSecondParentDebt] = useState(0);
+
   const [childrenCount, setChildrenCount] = useState(1);
   const [childAgeYears, setChildAgeYears] = useState(3);
   const [fosterFamilyType, setFosterFamilyType] = useState<FosterFamilyType>("non_professional");
@@ -55,6 +77,7 @@ export default function IntegratedCalculatorPage() {
   const [gestationWeek, setGestationWeek] = useState(32);
   const [birthWeight, setBirthWeight] = useState(1400);
   const [hospWeeks, setHospWeeks] = useState(4);
+  const [fullTermHospConditionMet, setFullTermHospConditionMet] = useState(true);
 
   // Podstawa wymiaru zasiłku — standardowa lub indywidualna (pkt f)
   const [baseMode, setBaseMode] = useState<"standard" | "custom" | "creator">("standard");
@@ -78,12 +101,14 @@ export default function IntegratedCalculatorPage() {
   const [creatorJdgMonths, setCreatorJdgMonths] = useState(3);
   const [creatorJdgDeclared, setCreatorJdgDeclared] = useState(23550);
   const [creatorJdgMin, setCreatorJdgMin] = useState(5652);
+  const [creatorJdgPreferential, setCreatorJdgPreferential] = useState(false);
   const [baseCalcResult, setBaseCalcResult] = useState<IndividualBaseCalculationResponse | null>(
     null
   );
 
   const [paymentVariant, setPaymentVariant] = useState<PaymentVariant>("81_5");
   const [motherMaternityWeeks, setMotherMaternityWeeks] = useState(20);
+  const [motherParentalWeeks, setMotherParentalWeeks] = useState<string>("");
   const [fatherParentalWeeks, setFatherParentalWeeks] = useState(9);
   const [fatherPaternity, setFatherPaternity] = useState(true);
 
@@ -91,12 +116,20 @@ export default function IntegratedCalculatorPage() {
   const [workFte, setWorkFte] = useState(0.5);
   const [workWeeks, setWorkWeeks] = useState(10);
   const [workDuringExtendedPart, setWorkDuringExtendedPart] = useState(true);
+
+  const [fatherCombineWork, setFatherCombineWork] = useState(false);
+  const [fatherWorkFte, setFatherWorkFte] = useState(0.5);
+  const [fatherWorkWeeks, setFatherWorkWeeks] = useState(6);
+  const [fatherWorkDuringExtendedPart, setFatherWorkDuringExtendedPart] = useState(true);
+
   const [employerCount, setEmployerCount] = useState(user?.employer_insured_count ?? 30);
   const [contributionDebt, setContributionDebt] = useState(user?.debt_amount_pln ?? 0);
 
   const [result, setResult] = useState<IntegratedCalculatorResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const parsedCreatorSalaries = parsePolishSalaryList(creatorSalariesText);
 
   useEffect(() => {
     api.getSampleCases().then(setSampleCases).catch(() => setSampleCases([]));
@@ -116,6 +149,9 @@ export default function IntegratedCalculatorPage() {
       const gross = Number(data.gross_monthly_salary ?? 7000);
       const custom1 = data.custom_benefit_base ? Number(data.custom_benefit_base) : null;
       const custom2 = data.second_parent_custom_base ? Number(data.second_parent_custom_base) : null;
+      const secondGross = data.second_parent_gross_salary
+        ? Number(data.second_parent_gross_salary)
+        : null;
       const variant = (data.payment_variant as PaymentVariant) || "81_5";
       const empCount = Number(data.employer_insured_count ?? 25);
       const defaultMat = MATERNITY_WEEKS_BY_CHILDREN[Math.min(kids, 5)] || 20;
@@ -129,6 +165,14 @@ export default function IntegratedCalculatorPage() {
       setScenario(sc);
       setInsuranceTitle(insTitle);
       setInsuredOnDate(insured);
+      setFteFraction(1.0);
+      setSingleParent(false);
+      setSecondParentInsuredClaim(false);
+      setSecondParentInsuranceTitle("uop");
+      setSecondParentHasSickness(true);
+      setSecondParentFteFraction(1.0);
+      setSecondParentEmployerCount(25);
+      setSecondParentDebt(0);
       setChildrenCount(kids);
       if (data.child_age_years !== undefined && data.child_age_years !== null) {
         setChildAgeYears(Number(data.child_age_years));
@@ -144,17 +188,19 @@ export default function IntegratedCalculatorPage() {
         setBaseMode("standard");
         setCustomBase1("");
       }
-      if (data.second_parent_gross_salary) {
-        setSecondParentGross(Number(data.second_parent_gross_salary));
-      }
+      setSecondParentGross(secondGross ?? gross);
       setCustomBase2(custom2 ? String(custom2) : "");
       setPaymentVariant(variant);
       setEmployerCount(empCount);
+      setContributionDebt(0);
       setMotherMaternityWeeks(matWeeks);
+      setMotherParentalWeeks("");
       setFatherParentalWeeks(fatherPar);
       setFatherPaternity(fatherPat);
       setPremature(false);
+      setFullTermHospConditionMet(true);
       setCombineWork(false);
+      setFatherCombineWork(false);
 
       setLoading(true);
       api
@@ -169,9 +215,7 @@ export default function IntegratedCalculatorPage() {
           has_za_zyciem_certificate: Boolean(data.has_za_zyciem_certificate),
           gross_monthly_salary: gross,
           custom_benefit_base: custom1,
-          second_parent_gross_salary: data.second_parent_gross_salary
-            ? Number(data.second_parent_gross_salary)
-            : 8000,
+          second_parent_gross_salary: secondGross,
           second_parent_custom_base: custom2,
           payment_variant: variant,
           mother_maternity_weeks: matWeeks,
@@ -197,6 +241,28 @@ export default function IntegratedCalculatorPage() {
     }
   }, [user]);
 
+  const handleScenarioChange = (nextScenario: BenefitScenario) => {
+    setScenario(nextScenario);
+    if (nextScenario === "birth") {
+      setAdoptionShort9Weeks(false);
+      setPrevFosterMatWeeks(0);
+      setPrevFosterParWeeks(0);
+      setFosterDeferred(false);
+      setFosterFamilyType("non_professional");
+      setMotherMaternityWeeks(MATERNITY_WEEKS_BY_CHILDREN[childrenCount] || 20);
+    } else {
+      setStillbirthOrEarlyDeath(false);
+      setMotherEarlyTransfer8Weeks(false);
+      setPreBirthWeeks(0);
+      if (nextScenario === "foster") {
+        setFatherPaternity(false);
+      }
+      setMotherMaternityWeeks(
+        adoptionShort9Weeks ? 9 : MATERNITY_WEEKS_BY_CHILDREN[childrenCount] || 20
+      );
+    }
+  };
+
   const handleChildrenCountChange = (newCount: number) => {
     const clamped = Math.max(1, Math.min(6, newCount));
     setChildrenCount(clamped);
@@ -218,10 +284,15 @@ export default function IntegratedCalculatorPage() {
     setScenario(found.scenario || "birth");
     setInsuranceTitle(found.insurance_title);
     setInsuredOnDate(found.insured_on_event_date);
+    setFteFraction(1.0);
+    setSingleParent(false);
     setSecondParentInsuredClaim(false);
-    setStillbirthOrEarlyDeath(false);
-    setMotherEarlyTransfer8Weeks(false);
-    setPreBirthWeeks(0);
+    setSecondParentInsuranceTitle("uop");
+    setSecondParentHasSickness(true);
+    setSecondParentFteFraction(1.0);
+    setSecondParentEmployerCount(25);
+    setSecondParentDebt(0);
+    setContributionDebt(0);
     setChildrenCount(found.children_count);
     if (found.child_age_years !== undefined && found.child_age_years !== null) {
       setChildAgeYears(found.child_age_years);
@@ -237,9 +308,7 @@ export default function IntegratedCalculatorPage() {
       setBaseMode("standard");
       setCustomBase1("");
     }
-    if (found.second_parent_gross_salary) {
-      setSecondParentGross(found.second_parent_gross_salary);
-    }
+    setSecondParentGross(found.second_parent_gross_salary ?? found.gross_monthly_salary);
     if (found.second_parent_custom_base) {
       setCustomBase2(String(found.second_parent_custom_base));
     } else {
@@ -250,15 +319,20 @@ export default function IntegratedCalculatorPage() {
     // Reset wszystkich opcji pomocniczych, aby stan formularza odpowiadał wynikowi przykładu
     setPremature(false);
     setHospWeeks(0);
+    setFullTermHospConditionMet(true);
     setCombineWork(false);
     setWorkFte(0.5);
     setWorkWeeks(0);
+    setFatherCombineWork(false);
+    setFatherWorkFte(0.5);
+    setFatherWorkWeeks(0);
     setStillbirthOrEarlyDeath(false);
     setMotherEarlyTransfer8Weeks(false);
     setPreBirthWeeks(0);
     setAdoptionShort9Weeks(false);
     setPrevFosterMatWeeks(0);
     setPrevFosterParWeeks(0);
+    setMotherParentalWeeks("");
     if ((found.scenario || "birth") === "birth") {
       setChildAgeYears(3);
     }
@@ -287,7 +361,7 @@ export default function IntegratedCalculatorPage() {
         has_za_zyciem_certificate: found.has_za_zyciem,
         gross_monthly_salary: found.gross_monthly_salary,
         custom_benefit_base: found.custom_benefit_base ?? null,
-        second_parent_gross_salary: found.second_parent_gross_salary ?? 8000,
+        second_parent_gross_salary: found.second_parent_gross_salary ?? null,
         second_parent_custom_base: found.second_parent_custom_base ?? null,
         payment_variant: found.payment_variant,
         mother_maternity_weeks: found.mother_maternity_weeks ?? defaultMat,
@@ -306,17 +380,12 @@ export default function IntegratedCalculatorPage() {
   const handleComputeIndividualBase = async () => {
     setError(null);
     try {
-      // Poprawne parsowanie polskich zapisów kwot (np. "7 500,50; 8 000,00" lub "7500, 8000")
-      const normalizedChunks = creatorSalariesText
-        .split(/[;\n]+|,(?=\s*\d{3,})/)
-        .map((chunk) => chunk.replace(/[\s\u00A0]+/g, "").replace(",", ".").trim())
-        .filter((chunk) => chunk.length > 0);
-      const parsedSalaries = normalizedChunks
-        .map((s) => Number(s))
-        .filter((n) => !Number.isNaN(n) && n > 0);
+      const parsedSalaries = parsePolishSalaryList(creatorSalariesText);
 
       if (creatorSubMode === "uop_12m" && parsedSalaries.length === 0) {
-        setError("Wpisz co najmniej jedno dodatnie miesięczne wynagrodzenie brutto (oddzielaj średnikiem, np. 7 500,50; 8 000).");
+        setError(
+          "Wpisz co najmniej jedno dodatnie miesięczne wynagrodzenie brutto (oddzielaj średnikiem lub przecinkiem, np. 7 500,50; 8 000,00)."
+        );
         return;
       }
 
@@ -332,6 +401,7 @@ export default function IntegratedCalculatorPage() {
         jdg_insured_months: Number(creatorJdgMonths),
         jdg_declared_monthly_gross: Number(creatorJdgDeclared),
         jdg_min_monthly_gross: Number(creatorJdgMin),
+        jdg_preferential_zus: creatorJdgPreferential,
       });
       setBaseCalcResult(res);
       setCustomBase1(String(res.computed_base_monthly));
@@ -352,18 +422,37 @@ export default function IntegratedCalculatorPage() {
           ? Number(customBase1)
           : null;
       const useCustom2 =
+        !singleParent &&
         (baseMode === "custom" || baseMode === "creator") &&
         customBase2.trim() !== "" &&
         Number(customBase2) > 0
           ? Number(customBase2)
           : null;
 
+      const parsedMotherPar =
+        motherParentalWeeks.trim() === "" ? null : Math.max(0, Number(motherParentalWeeks));
+
+      const isParent1Uninsured = !insuredOnDate || insuranceTitle === "none";
+      const useSecondParentClaim = !singleParent && isParent1Uninsured && secondParentInsuredClaim;
+      const canFatherCombine =
+        !singleParent &&
+        secondParentInsuranceTitle === "uop" &&
+        secondParentHasSickness &&
+        fatherCombineWork &&
+        (Number(fatherParentalWeeks) > 0 || useSecondParentClaim);
+
       const res = await api.calculateIntegrated({
         scenario,
         insurance_title: insuranceTitle,
-        has_sickness_insurance_on_birth_date: insuredOnDate,
-        second_parent_insured_claim:
-          !insuredOnDate || insuranceTitle === "none" ? secondParentInsuredClaim : false,
+        has_sickness_insurance_on_birth_date: insuranceTitle === "none" ? false : insuredOnDate,
+        single_parent_or_no_second_parent: singleParent,
+        second_parent_insured_claim: useSecondParentClaim,
+        second_parent_insurance_title: singleParent ? "none" : secondParentInsuranceTitle,
+        second_parent_has_sickness_insurance: singleParent
+          ? false
+          : secondParentInsuranceTitle === "none"
+            ? false
+            : secondParentHasSickness,
         children_count: Number(childrenCount),
         child_age_years: scenario === "birth" ? null : Number(childAgeYears),
         foster_family_type: fosterFamilyType,
@@ -381,20 +470,37 @@ export default function IntegratedCalculatorPage() {
         gestation_week: premature ? Number(gestationWeek) : null,
         birth_weight_grams: premature ? Number(birthWeight) : null,
         hospitalization_weeks: premature ? Number(hospWeeks) : 0,
+        full_term_hospitalization_condition_met: premature ? fullTermHospConditionMet : true,
         gross_monthly_salary: Number(grossSalary),
+        fte_fraction: insuranceTitle === "uop" ? Number(fteFraction) : 1.0,
         custom_benefit_base: useCustom1,
-        second_parent_gross_salary: Number(secondParentGross),
+        second_parent_gross_salary: singleParent ? null : Number(secondParentGross),
+        second_parent_fte_fraction:
+          !singleParent && secondParentInsuranceTitle === "uop"
+            ? Number(secondParentFteFraction)
+            : 1.0,
         second_parent_custom_base: useCustom2,
         payment_variant: paymentVariant,
         mother_maternity_weeks: Number(motherMaternityWeeks),
-        father_takes_parental_weeks: Number(fatherParentalWeeks),
-        father_takes_paternity_leave: fatherPaternity,
+        mother_takes_parental_weeks: parsedMotherPar,
+        father_takes_parental_weeks: singleParent ? 0 : Number(fatherParentalWeeks),
+        father_takes_paternity_leave:
+          singleParent || scenario === "foster" ? false : fatherPaternity,
         combine_parental_with_work: combineWork,
         work_fte_fraction: combineWork ? Number(workFte) : 0,
         combined_work_weeks: combineWork ? Number(workWeeks) : 0,
         work_during_extended_part: combineWork ? workDuringExtendedPart : true,
+        father_combine_parental_with_work: canFatherCombine,
+        father_work_fte_fraction: canFatherCombine ? Number(fatherWorkFte) : 0,
+        father_combined_work_weeks: canFatherCombine ? Number(fatherWorkWeeks) : 0,
+        father_work_during_extended_part: canFatherCombine ? fatherWorkDuringExtendedPart : true,
         employer_insured_count: Number(employerCount),
+        second_parent_employer_insured_count: useSecondParentClaim
+          ? Number(secondParentEmployerCount)
+          : null,
         contribution_debt_pln: insuranceTitle === "jdg" ? Number(contributionDebt) : 0,
+        second_parent_contribution_debt_pln:
+          !singleParent && secondParentInsuranceTitle === "jdg" ? Number(secondParentDebt) : 0,
       });
       setResult(res);
     } catch (err) {
@@ -479,10 +585,7 @@ export default function IntegratedCalculatorPage() {
                 <button
                   key={opt.id}
                   type="button"
-                  onClick={() => {
-                    setScenario(opt.id);
-                    setMotherMaternityWeeks(MATERNITY_WEEKS_BY_CHILDREN[childrenCount] || 20);
-                  }}
+                  onClick={() => handleScenarioChange(opt.id)}
                   className={`rounded-lg border px-2 py-2 text-xs font-semibold transition ${
                     scenario === opt.id
                       ? "border-[#007834] bg-[#e6f4ec] text-[#005a27] dark:bg-[#007834]/20 dark:text-emerald-300"
@@ -624,13 +727,21 @@ export default function IntegratedCalculatorPage() {
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
                 <InfoTooltip
-                  label="Tytuł ubezpieczenia"
+                  label="Tytuł ubezpieczenia (Rodzic 1)"
                   tooltip="Forma zatrudnienia decyduje o tym, czy ubezpieczenie chorobowe jest obowiązkowe (umowa o pracę), czy dobrowolne (zlecenie, JDG), oraz jakie formularze trzeba złożyć."
                 />
               </label>
               <select
                 value={insuranceTitle}
-                onChange={(e) => setInsuranceTitle(e.target.value as InsuranceTitle)}
+                onChange={(e) => {
+                  const next = e.target.value as InsuranceTitle;
+                  setInsuranceTitle(next);
+                  if (next === "none") {
+                    setInsuredOnDate(false);
+                  } else if (insuranceTitle === "none" && next === "uop") {
+                    setInsuredOnDate(true);
+                  }
+                }}
                 className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700"
               >
                 <option value="uop">Umowa o pracę</option>
@@ -657,20 +768,65 @@ export default function IntegratedCalculatorPage() {
             </div>
           </div>
 
-          <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300">
-            <input
-              type="checkbox"
-              checked={insuredOnDate}
-              onChange={(e) => setInsuredOnDate(e.target.checked)}
-              className="h-4 w-4 shrink-0 accent-[#007834]"
-            />
-            <InfoTooltip
-              label="Podleganie ubezpieczeniu chorobowemu na dzień porodu / przyjęcia dziecka"
-              tooltip="Warunek konieczny do uzyskania zasiłku macierzyńskiego przez matkę. Przy umowie o pracę jest automatyczny; na zleceniu i JDG musisz być zgłoszona do dobrowolnego ubezpieczenia chorobowego."
-            />
-          </label>
+          {insuranceTitle === "uop" && (
+            <div className="flex items-center justify-between gap-2">
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                <InfoTooltip
+                  label="Wymiar etatu Rodzica 1 (art. 45 ustawy zasiłkowej)"
+                  tooltip="Dla pracownika na część etatu minimalna podstawa wymiaru zasiłku (4 806 zł − 13,71%) ulega proporcjonalnemu zmniejszeniu do wymiaru etatu."
+                />
+              </label>
+              <input
+                type="number"
+                min={0.1}
+                max={1.0}
+                step="any"
+                value={fteFraction}
+                onChange={(e) => setFteFraction(Number(e.target.value))}
+                className="w-24 rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm dark:border-slate-700"
+              />
+            </div>
+          )}
 
-          {(!insuredOnDate || insuranceTitle === "none") && (
+          <div className="space-y-2">
+            <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300">
+              <input
+                type="checkbox"
+                checked={insuranceTitle === "none" ? false : insuredOnDate}
+                disabled={insuranceTitle === "none"}
+                onChange={(e) => setInsuredOnDate(e.target.checked)}
+                className="h-4 w-4 shrink-0 accent-[#007834] disabled:opacity-50"
+              />
+              <InfoTooltip
+                label="Podleganie ubezpieczeniu chorobowemu na dzień porodu / przyjęcia dziecka"
+                tooltip="Warunek konieczny do uzyskania zasiłku macierzyńskiego przez matkę. Przy umowie o pracę jest automatyczny; na zleceniu i JDG musisz być zgłoszona do dobrowolnego ubezpieczenia chorobowego."
+              />
+            </label>
+
+            <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300">
+              <input
+                type="checkbox"
+                checked={singleParent}
+                onChange={(e) => {
+                  const checked = e.target.checked;
+                  setSingleParent(checked);
+                  if (checked) {
+                    setSecondParentInsuredClaim(false);
+                    setFatherParentalWeeks(0);
+                    setFatherPaternity(false);
+                    setFatherCombineWork(false);
+                  }
+                }}
+                className="h-4 w-4 shrink-0 accent-[#007834]"
+              />
+              <InfoTooltip
+                label="Samotne rodzicielstwo / brak drugiego rodzica"
+                tooltip="Gdy dziecko wychowuje jeden rodzic (lub drugi rodzic nie korzysta z uprawnień), 9-tygodniowa nieprzenoszalna część urlopu rodzicielskiego drugiego rodzica pozostaje niewykorzystana (art. 182¹ᵃ § 4–5 KP)."
+              />
+            </label>
+          </div>
+
+          {!singleParent && (!insuredOnDate || insuranceTitle === "none") && (
             <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs dark:border-amber-800/60 dark:bg-amber-950/40">
               <label className="flex items-center gap-2 font-medium text-amber-900 dark:text-amber-200">
                 <input
@@ -687,12 +843,122 @@ export default function IntegratedCalculatorPage() {
             </div>
           )}
 
+          {/* Status drugiego rodzica (Rodzic 2) */}
+          {!singleParent && (
+            <div className="space-y-2.5 rounded-lg border border-slate-200 bg-slate-50/70 p-3 dark:border-emerald-950 dark:bg-[#16241d]/70">
+              <p className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                <InfoTooltip
+                  label="Status ubezpieczenia Rodzica 2"
+                  tooltip="Tytuł ubezpieczenia drugiego rodzica decyduje o jego prawie do przejęcia urlopu, stawce minimalnej (art. 45), limicie 250% podstawy dobrowolnej, możliwości łączenia urlopu z pracą (tylko UoP) oraz zawieszeniu wypłaty przy zadłużeniu JDG (art. 2a)."
+                />
+              </p>
+              <div className="grid gap-2.5 sm:grid-cols-2">
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400">
+                    Tytuł ubezpieczenia Rodzica 2
+                  </label>
+                  <select
+                    value={secondParentInsuranceTitle}
+                    onChange={(e) => {
+                      const next = e.target.value as InsuranceTitle;
+                      setSecondParentInsuranceTitle(next);
+                      if (next === "none") {
+                        setSecondParentHasSickness(false);
+                        setFatherCombineWork(false);
+                      } else {
+                        if (secondParentInsuranceTitle === "none" && next === "uop") {
+                          setSecondParentHasSickness(true);
+                        }
+                        if (next !== "uop") {
+                          setFatherCombineWork(false);
+                        }
+                      }
+                    }}
+                    className="mt-1 w-full rounded border border-slate-300 bg-white px-2.5 py-1.5 text-xs dark:border-slate-700 dark:bg-[#111c17]"
+                  >
+                    <option value="uop">Umowa o pracę</option>
+                    <option value="zlecenie">Umowa zlecenie</option>
+                    <option value="jdg">Działalność (JDG)</option>
+                    <option value="none">Brak ubezpieczenia</option>
+                  </select>
+                </div>
+                {secondParentInsuranceTitle === "uop" && (
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400">
+                      Wymiar etatu Rodzica 2
+                    </label>
+                    <input
+                      type="number"
+                      min={0.1}
+                      max={1.0}
+                      step="any"
+                      value={secondParentFteFraction}
+                      onChange={(e) => setSecondParentFteFraction(Number(e.target.value))}
+                      className="mt-1 w-full rounded border border-slate-300 bg-white px-2.5 py-1.5 text-xs dark:border-slate-700 dark:bg-[#111c17]"
+                    />
+                  </div>
+                )}
+                {secondParentInsuranceTitle === "jdg" && (
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400">
+                      <InfoTooltip
+                        label="Zaległość ZUS Rodzica 2 (zł)"
+                        tooltip="Art. 2a ustawy zasiłkowej: zadłużenie JDG powyżej 48,06 zł (1% płacy minimalnej) wstrzymuje wypłatę zasiłku drugiego rodzica."
+                      />
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      step="any"
+                      value={secondParentDebt}
+                      onChange={(e) => setSecondParentDebt(Number(e.target.value))}
+                      className="mt-1 w-full rounded border border-slate-300 bg-white px-2.5 py-1.5 text-xs dark:border-slate-700 dark:bg-[#111c17]"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {secondParentInsuranceTitle !== "none" && (
+                <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300">
+                  <input
+                    type="checkbox"
+                    checked={secondParentHasSickness}
+                    onChange={(e) => setSecondParentHasSickness(e.target.checked)}
+                    className="h-4 w-4 shrink-0 accent-[#007834]"
+                  />
+                  Rodzic 2 podlega ubezpieczeniu chorobowemu
+                </label>
+              )}
+
+              {(!insuredOnDate || insuranceTitle === "none") &&
+                secondParentInsuredClaim &&
+                (secondParentInsuranceTitle === "uop" ||
+                  secondParentInsuranceTitle === "zlecenie") && (
+                  <div className="flex items-center justify-between gap-2 border-t border-slate-200 pt-2 dark:border-slate-700">
+                    <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400">
+                      <InfoTooltip
+                        label="Ubezpieczeni u płatnika Rodzica 2"
+                        tooltip="Decyduje o tym, czy w trybie art. 31 ust. 3h zasiłek ojca wypłaca jego pracodawca (> 20 osób), czy ZUS (≤ 20 osób)."
+                      />
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={secondParentEmployerCount}
+                      onChange={(e) => setSecondParentEmployerCount(Number(e.target.value))}
+                      className="w-24 rounded border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-700 dark:bg-[#111c17]"
+                    />
+                  </div>
+                )}
+            </div>
+          )}
+
           {/* Podstawa wymiaru zasiłku — w tym indywidualna podstawa wymiaru (pkt f) */}
           <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-3.5 dark:border-emerald-950 dark:bg-[#16241d]">
             <p className="text-xs font-bold text-slate-800 dark:text-slate-200">
               <InfoTooltip
                 label="Podstawa wymiaru zasiłku"
-                tooltip="Możesz wyliczyć podstawę automatycznie z kwoty brutto, wpisać indywidualną podstawę wymiaru bezpośrednio z dokumentu (Z-3/Z-3a) lub użyć kreatora (średnia z 12 mies. z premiami, art. 48a dla JDG, art. 43)."
+                tooltip="Możesz wyliczyć podstawę automatycznie z kwoty brutto, wpisać indywidualną podstawę wymiaru bezpośrednio z dokumentu (Z-3/Z-3a) lub użyć kreatora (średnia z 12 mies. z premiami, art. 48a/49 dla JDG, art. 43)."
               />
             </p>
             <div className="grid grid-cols-3 gap-1.5">
@@ -718,12 +984,12 @@ export default function IntegratedCalculatorPage() {
               ))}
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className={`grid gap-3 ${singleParent ? "" : "sm:grid-cols-2"}`}>
               <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
                   <InfoTooltip
                     label="Brutto rodzica 1 (zł)"
-                    tooltip="Przeciętne miesięczne wynagrodzenie brutto z ostatnich 12 miesięcy przed porodem. ZUS pomniejsza je o 13,71% (składki pracownika), aby ustalić podstawę wymiaru zasiłku."
+                    tooltip="Przeciętne miesięczne wynagrodzenie brutto (lub zadeklarowana podstawa składek na JDG) z ostatnich 12 miesięcy przed porodem. ZUS pomniejsza je o 13,71%."
                   />
                 </label>
                 <input
@@ -735,26 +1001,32 @@ export default function IntegratedCalculatorPage() {
                   className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm dark:border-slate-700 dark:bg-[#111c17]"
                 />
               </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
-                  <InfoTooltip
-                    label="Brutto rodzica 2 (zł)"
-                    tooltip="Średnie wynagrodzenie brutto drugiego rodzica (np. ojca) — służy do wyliczenia jego zasiłku za przejęty macierzyński, 9 tygodni rodzicielskiego oraz urlop ojcowski."
+              {!singleParent && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    <InfoTooltip
+                      label="Brutto rodzica 2 (zł)"
+                      tooltip="Średnie wynagrodzenie brutto drugiego rodzica (np. ojca) — służy do wyliczenia jego zasiłku za przejęty macierzyński, rodzicielski oraz urlop ojcowski."
+                    />
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    step="any"
+                    value={secondParentGross}
+                    onChange={(e) => setSecondParentGross(Number(e.target.value))}
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm dark:border-slate-700 dark:bg-[#111c17]"
                   />
-                </label>
-                <input
-                  type="number"
-                  min={0}
-                  step="any"
-                  value={secondParentGross}
-                  onChange={(e) => setSecondParentGross(Number(e.target.value))}
-                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm dark:border-slate-700 dark:bg-[#111c17]"
-                />
-              </div>
+                </div>
+              )}
             </div>
 
             {(baseMode === "custom" || baseMode === "creator") && (
-              <div className="grid gap-3 border-t border-slate-200 pt-2 dark:border-slate-700 sm:grid-cols-2">
+              <div
+                className={`grid gap-3 border-t border-slate-200 pt-2 dark:border-slate-700 ${
+                  singleParent ? "" : "sm:grid-cols-2"
+                }`}
+              >
                 <div>
                   <label className="block text-xs font-bold text-[#005a27] dark:text-emerald-300">
                     <InfoTooltip
@@ -772,30 +1044,32 @@ export default function IntegratedCalculatorPage() {
                     className="mt-1 w-full rounded-lg border border-[#007834] bg-white px-3 py-1.5 text-sm font-semibold dark:bg-[#111c17]"
                   />
                 </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                    <InfoTooltip
-                      label="Indywidualna podstawa Rodzica 2 (zł)"
-                      tooltip="Opcjonalna indywidualna podstawa wymiaru zasiłku dla drugiego rodzica (po odliczeniu 13,71%)."
+                {!singleParent && (
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                      <InfoTooltip
+                        label="Indywidualna podstawa Rodzica 2 (zł)"
+                        tooltip="Opcjonalna indywidualna podstawa wymiaru zasiłku dla drugiego rodzica (po odliczeniu 13,71%)."
+                      />
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      step="any"
+                      placeholder="np. 7075.78"
+                      value={customBase2}
+                      onChange={(e) => setCustomBase2(e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm dark:border-slate-700 dark:bg-[#111c17]"
                     />
-                  </label>
-                  <input
-                    type="number"
-                    min={0}
-                    step="any"
-                    placeholder="np. 7075.78"
-                    value={customBase2}
-                    onChange={(e) => setCustomBase2(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm dark:border-slate-700 dark:bg-[#111c17]"
-                  />
-                </div>
+                  </div>
+                )}
               </div>
             )}
 
             {baseMode === "creator" && (
               <div className="space-y-2.5 rounded-lg border border-[#007834]/30 bg-white p-3 text-xs dark:border-emerald-900 dark:bg-[#111c17]">
                 <p className="font-bold text-[#005a27] dark:text-emerald-300">
-                  Kreator indywidualnej podstawy wymiaru zasiłku (Art. 36–50 ustawy zasiłkowej)
+                  Kreator indywidualnej podstawy wymiaru zasiłku (Art. 36–52 ustawy zasiłkowej)
                 </p>
                 <select
                   value={creatorSubMode}
@@ -810,7 +1084,7 @@ export default function IntegratedCalculatorPage() {
                     Pracownik / Zlecenie: średnia z miesięcy (Z-3/Z-3a) + premie kwartalne/roczne (1/12)
                   </option>
                   <option value="jdg_art48a">
-                    Działalność gospodarcza (JDG): proporcjonalna podstawa wg Art. 48a (&lt; 12 mies.)
+                    Działalność gospodarcza (JDG): proporcjonalna podstawa wg Art. 48a / 49 (0–12 mies.)
                   </option>
                   <option value="previous_benefit">
                     Zachowana podstawa z poprzedniego zasiłku (przerwa &lt; 1 mies. — Art. 43)
@@ -821,14 +1095,28 @@ export default function IntegratedCalculatorPage() {
                   <div className="space-y-2">
                     <div>
                       <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300">
-                        Wynagrodzenia brutto z pełnych miesięcy (oddzielone przecinkiem, do 12 mies.)
+                        Wynagrodzenia brutto z pełnych miesięcy (średnik lub przecinek, do 12 mies.)
                       </label>
                       <input
                         type="text"
+                        placeholder="np. 7 500,50; 8 000,00; 8 000,00"
                         value={creatorSalariesText}
                         onChange={(e) => setCreatorSalariesText(e.target.value)}
                         className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-xs dark:border-slate-700"
                       />
+                      <p
+                        className={`mt-0.5 text-[10px] ${
+                          parsedCreatorSalaries.length === 0 || parsedCreatorSalaries.length > 12
+                            ? "font-semibold text-amber-700 dark:text-amber-300"
+                            : "text-slate-500 dark:text-slate-400"
+                        }`}
+                      >
+                        Rozpoznano {parsedCreatorSalaries.length} mies. wynagrodzeń
+                        {parsedCreatorSalaries.length > 12
+                          ? " (API wykorzysta ostatnie 12 miesięcy)"
+                          : ""}
+                        .
+                      </p>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       <div>
@@ -889,46 +1177,64 @@ export default function IntegratedCalculatorPage() {
                 )}
 
                 {creatorSubMode === "jdg_art48a" && (
-                  <div className="grid grid-cols-3 gap-2">
-                    <div>
-                      <label className="block text-[10px] text-slate-600 dark:text-slate-400">
-                        Pełne mies. chorobowego (1–12)
-                      </label>
-                      <input
-                        type="number"
-                        min={1}
-                        max={12}
-                        value={creatorJdgMonths}
-                        onChange={(e) => setCreatorJdgMonths(Number(e.target.value))}
-                        className="w-full rounded border border-slate-300 px-2 py-1 text-xs dark:border-slate-700"
-                      />
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <label className="block text-[10px] text-slate-600 dark:text-slate-400">
+                          <InfoTooltip
+                            label="Pełne mies. (0–12)"
+                            tooltip="0 pełnych miesięcy kalendarzowych = art. 49 ust. 1 pkt 1 (najniższa podstawa składek). 1–11 mies. = art. 48a (najniższa + 1/12 nadwyżki za każdy pełny miesiąc)."
+                          />
+                        </label>
+                        <input
+                          type="number"
+                          min={0}
+                          max={12}
+                          value={creatorJdgMonths}
+                          onChange={(e) => setCreatorJdgMonths(Number(e.target.value))}
+                          className="w-full rounded border border-slate-300 px-2 py-1 text-xs dark:border-slate-700"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-slate-600 dark:text-slate-400">
+                          Deklarowana podstawa (zł)
+                        </label>
+                        <input
+                          type="number"
+                          min={0}
+                          step="any"
+                          value={creatorJdgDeclared}
+                          onChange={(e) => setCreatorJdgDeclared(Number(e.target.value))}
+                          className="w-full rounded border border-slate-300 px-2 py-1 text-xs dark:border-slate-700"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-slate-600 dark:text-slate-400">
+                          Najniższa podstawa JDG (zł)
+                        </label>
+                        <input
+                          type="number"
+                          min={0}
+                          step="any"
+                          value={creatorJdgMin}
+                          onChange={(e) => setCreatorJdgMin(Number(e.target.value))}
+                          className="w-full rounded border border-slate-300 px-2 py-1 text-xs dark:border-slate-700"
+                        />
+                      </div>
                     </div>
-                    <div>
-                      <label className="block text-[10px] text-slate-600 dark:text-slate-400">
-                        Deklarowana podstawa (zł)
-                      </label>
+                    <label className="flex items-center gap-2 text-[11px] text-slate-700 dark:text-slate-300">
                       <input
-                        type="number"
-                        min={0}
-                        step="any"
-                        value={creatorJdgDeclared}
-                        onChange={(e) => setCreatorJdgDeclared(Number(e.target.value))}
-                        className="w-full rounded border border-slate-300 px-2 py-1 text-xs dark:border-slate-700"
+                        type="checkbox"
+                        checked={creatorJdgPreferential}
+                        onChange={(e) => {
+                          const checked = e.target.checked;
+                          setCreatorJdgPreferential(checked);
+                          setCreatorJdgMin(checked ? 1441.8 : 5652);
+                        }}
+                        className="h-3.5 w-3.5 shrink-0 accent-[#007834]"
                       />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] text-slate-600 dark:text-slate-400">
-                        Najniższa podstawa JDG (zł)
-                      </label>
-                      <input
-                        type="number"
-                        min={0}
-                        step="any"
-                        value={creatorJdgMin}
-                        onChange={(e) => setCreatorJdgMin(Number(e.target.value))}
-                        className="w-full rounded border border-slate-300 px-2 py-1 text-xs dark:border-slate-700"
-                      />
-                    </div>
+                      Preferencyjny ZUS — 30% płacy minimalnej (1 441,80 zł zamiast 5 652,00 zł w 2026 r.)
+                    </label>
                   </div>
                 )}
 
@@ -964,6 +1270,9 @@ export default function IntegratedCalculatorPage() {
                       {baseCalcResult.daily_rate_81_5_percent.toFixed(2)} zł | 70%:{" "}
                       {baseCalcResult.daily_rate_70_percent.toFixed(2)} zł)
                     </p>
+                    <p className="mt-0.5 text-[10px] opacity-85">
+                      Podstawa prawna: {baseCalcResult.legal_basis}
+                    </p>
                     <ul className="mt-1 list-disc pl-4">
                       {baseCalcResult.explanation_steps.map((s, idx) => (
                         <li key={idx}>{s}</li>
@@ -975,7 +1284,11 @@ export default function IntegratedCalculatorPage() {
             )}
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div
+            className={`grid gap-3 ${
+              insuranceTitle === "uop" || insuranceTitle === "zlecenie" ? "sm:grid-cols-2" : ""
+            }`}
+          >
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
                 <InfoTooltip
@@ -992,29 +1305,31 @@ export default function IntegratedCalculatorPage() {
                 <option value="100_70">100% macierzyński + 70% rodzicielski</option>
               </select>
             </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
-                <InfoTooltip
-                  label="Ubezpieczeni u płatnika"
-                  tooltip="Liczba osób zgłoszonych do ubezpieczenia chorobowego przez Twojego pracodawcę na dzień 30 listopada poprzedniego roku. Powyżej 20 osób zasiłek wypłaca pracodawca, do 20 osób — ZUS."
+            {(insuranceTitle === "uop" || insuranceTitle === "zlecenie") && (
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  <InfoTooltip
+                    label="Ubezpieczeni u płatnika (Rodzic 1)"
+                    tooltip="Liczba osób zgłoszonych do ubezpieczenia chorobowego przez Twojego pracodawcę/zleceniodawcę na dzień 30 listopada poprzedniego roku. Powyżej 20 osób zasiłek wypłaca płatnik składek, do 20 osób — ZUS."
+                  />
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  value={employerCount}
+                  onChange={(e) => setEmployerCount(Number(e.target.value))}
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700"
                 />
-              </label>
-              <input
-                type="number"
-                min={0}
-                value={employerCount}
-                onChange={(e) => setEmployerCount(Number(e.target.value))}
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700"
-              />
-            </div>
+              </div>
+            )}
           </div>
 
           {insuranceTitle === "jdg" && (
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
                 <InfoTooltip
-                  label="Zaległość składkowa ZUS na JDG (zł — art. 2a)"
-                  tooltip="Dla osób prowadzących działalność gospodarczą zadłużenie z tytułu składek przekraczające 1% minimalnego wynagrodzenia (48,06 zł w 2026 r.) wstrzymuje wypłatę zasiłku do czasu uregulowania zaległości."
+                  label="Zaległość składkowa ZUS na JDG — Rodzic 1 (zł, art. 2a)"
+                  tooltip="Dla osób prowadzących działalność gospodarczą zadłużenie z tytułu składek przekraczające 1% minimalnego wynagrodzenia (48,06 zł w 2026 r.) wstrzymuje wypłatę zasiłku do czasu uregulowania zaległości (max 6 mies. na spłatę)."
                 />
               </label>
               <input
@@ -1029,7 +1344,7 @@ export default function IntegratedCalculatorPage() {
           )}
 
           {/* Podział między rodziców */}
-          <div className="space-y-2 rounded-lg border border-slate-200 p-3 dark:border-emerald-950">
+          <div className="space-y-2.5 rounded-lg border border-slate-200 p-3 dark:border-emerald-950">
             <p className="text-xs font-bold text-slate-700 dark:text-slate-300">
               <InfoTooltip
                 label="2. Podział opieki między rodziców"
@@ -1061,31 +1376,58 @@ export default function IntegratedCalculatorPage() {
                   className="mt-1 w-full rounded border border-slate-300 px-2.5 py-1.5 text-sm dark:border-slate-700"
                 />
               </div>
+
               <div>
                 <label className="block text-[11px] text-slate-600 dark:text-slate-400">
                   <InfoTooltip
-                    label="Rodzicielski dla 2. rodzica (tyg.)"
-                    tooltip="Każdemu z rodziców przysługuje 9 tygodni wyłącznego, nieprzenoszalnego urlopu rodzicielskiego (płatne 70%). Drugi rodzic może też przejąć więcej tygodni ze wspólnej puli (wówczas w wariancie 81,5% część wspólna jest płatna 81,5%, a 9 tyg. nieprzenoszalnych — 70%)."
+                    label="Rodzicielski Rodzica 1 (puste = maks.)"
+                    tooltip="Pozostaw puste, aby Rodzic 1 wykorzystał całą dostępną dla siebie pulę urlopu rodzicielskiego. Wpisz 0, aby sprawdzić jednorazowe wyrównanie do 100% za macierzyński (art. 31 ust. 4 ustawy zasiłkowej)."
                   />
                 </label>
                 <input
                   type="number"
                   min={0}
-                  max={67}
-                  value={fatherParentalWeeks}
-                  onChange={(e) => setFatherParentalWeeks(Number(e.target.value))}
+                  max={58}
+                  placeholder="maks. dostępna pula"
+                  value={motherParentalWeeks}
+                  onChange={(e) => setMotherParentalWeeks(e.target.value)}
                   className="mt-1 w-full rounded border border-slate-300 px-2.5 py-1.5 text-sm dark:border-slate-700"
                 />
               </div>
+
+              {!singleParent && (
+                <div className="sm:col-span-2">
+                  <label className="block text-[11px] text-slate-600 dark:text-slate-400">
+                    <InfoTooltip
+                      label="Rodzicielski dla 2. rodzica (tyg.)"
+                      tooltip="Każdemu z rodziców przysługuje 9 tygodni wyłącznego, nieprzenoszalnego urlopu rodzicielskiego (płatne 70%). Drugi rodzic może też przejąć więcej tygodni ze wspólnej puli (wówczas w wariancie 81,5% część wspólna jest płatna 81,5%, a 9 tyg. nieprzenoszalnych — 70%)."
+                    />
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={67}
+                    value={fatherParentalWeeks}
+                    onChange={(e) => setFatherParentalWeeks(Number(e.target.value))}
+                    className="mt-1 w-full rounded border border-slate-300 px-2.5 py-1.5 text-sm dark:border-slate-700"
+                  />
+                </div>
+              )}
             </div>
 
-            {scenario === "birth" && (
+            {scenario === "birth" && !singleParent && (
               <div className="space-y-1.5 pt-1">
                 <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300">
                   <input
                     type="checkbox"
                     checked={motherEarlyTransfer8Weeks}
-                    onChange={(e) => setMotherEarlyTransfer8Weeks(e.target.checked)}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setMotherEarlyTransfer8Weeks(checked);
+                      if (!checked && motherMaternityWeeks < 14) {
+                        setMotherMaternityWeeks(14);
+                      }
+                    }}
                     className="h-4 w-4 shrink-0 accent-[#007834]"
                   />
                   <InfoTooltip
@@ -1096,7 +1438,7 @@ export default function IntegratedCalculatorPage() {
               </div>
             )}
 
-            {scenario !== "foster" && (
+            {!singleParent && scenario !== "foster" && (
               <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300">
                 <input
                   type="checkbox"
@@ -1143,55 +1485,71 @@ export default function IntegratedCalculatorPage() {
               />
             </label>
             {premature && (
-              <div className="grid grid-cols-3 gap-2 pt-1">
-                <div>
-                  <label className="block text-[10px] text-slate-500 dark:text-slate-400">
+              <div className="space-y-2 pt-1">
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="block text-[10px] text-slate-500 dark:text-slate-400">
+                      <InfoTooltip
+                        label="Tydzień ciąży"
+                        tooltip="Urodzenie przed 28. tygodniem ciąży daje wyższy limit uzupełniającego urlopu (do 15 tygodni zamiast 8)."
+                      />
+                    </label>
+                    <input
+                      type="number"
+                      min={20}
+                      max={42}
+                      value={gestationWeek}
+                      onChange={(e) => setGestationWeek(Number(e.target.value))}
+                      className="w-full rounded border border-slate-300 px-2 py-1 text-xs dark:border-slate-700"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-slate-500 dark:text-slate-400">
+                      <InfoTooltip
+                        label="Masa (g)"
+                        tooltip="Masa urodzeniowa ≤ 1000 g również uprawnia do wyższego limitu uzupełniającego urlopu (maks. 15 tygodni)."
+                      />
+                    </label>
+                    <input
+                      type="number"
+                      min={300}
+                      max={6000}
+                      value={birthWeight}
+                      onChange={(e) => setBirthWeight(Number(e.target.value))}
+                      className="w-full rounded border border-slate-300 px-2 py-1 text-xs dark:border-slate-700"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-slate-500 dark:text-slate-400">
+                      <InfoTooltip
+                        label="Szpital (tyg.)"
+                        tooltip="Łączna liczba tygodni pobytu dziecka w szpitalu po porodzie (niepełny tydzień zaokrągla się w górę)."
+                      />
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={20}
+                      value={hospWeeks}
+                      onChange={(e) => setHospWeeks(Number(e.target.value))}
+                      className="w-full rounded border border-slate-300 px-2 py-1 text-xs dark:border-slate-700"
+                    />
+                  </div>
+                </div>
+                {gestationWeek >= 37 && birthWeight > 1000 && (
+                  <label className="flex items-center gap-2 rounded bg-slate-50 p-2 text-[11px] text-slate-700 dark:bg-[#16241d] dark:text-slate-300">
+                    <input
+                      type="checkbox"
+                      checked={fullTermHospConditionMet}
+                      onChange={(e) => setFullTermHospConditionMet(e.target.checked)}
+                      className="h-3.5 w-3.5 shrink-0 accent-[#007834]"
+                    />
                     <InfoTooltip
-                      label="Tydzień ciąży"
-                      tooltip="Urodzenie przed 28. tygodniem ciąży daje wyższy limit uzupełniającego urlopu (do 15 tygodni zamiast 8)."
+                      label="Pobyt trwał ≥ 2 kolejne dni z 1. dniem w przedziale 5.–28. dnia po porodzie (art. 180² § 1 pkt 3 KP)"
+                      tooltip="Dla dziecka urodzonego w terminie (≥ 37. tydzień i masa > 1000 g) uzupełniający urlop macierzyński przysługuje wyłącznie, gdy hospitalizacja trwała co najmniej 2 kolejne dni, a pierwszy dzień pobytu przypadł od 5. do 28. dnia po porodzie."
                     />
                   </label>
-                  <input
-                    type="number"
-                    min={20}
-                    max={42}
-                    value={gestationWeek}
-                    onChange={(e) => setGestationWeek(Number(e.target.value))}
-                    className="w-full rounded border border-slate-300 px-2 py-1 text-xs dark:border-slate-700"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] text-slate-500 dark:text-slate-400">
-                    <InfoTooltip
-                      label="Masa (g)"
-                      tooltip="Masa urodzeniowa ≤ 1000 g również uprawnia do wyższego limitu uzupełniającego urlopu (maks. 15 tygodni)."
-                    />
-                  </label>
-                  <input
-                    type="number"
-                    min={300}
-                    max={6000}
-                    value={birthWeight}
-                    onChange={(e) => setBirthWeight(Number(e.target.value))}
-                    className="w-full rounded border border-slate-300 px-2 py-1 text-xs dark:border-slate-700"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] text-slate-500 dark:text-slate-400">
-                    <InfoTooltip
-                      label="Szpital (tyg.)"
-                      tooltip="Łączna liczba tygodni pobytu dziecka w szpitalu po porodzie (niepełny tydzień zaokrągla się w górę)."
-                    />
-                  </label>
-                  <input
-                    type="number"
-                    min={0}
-                    max={20}
-                    value={hospWeeks}
-                    onChange={(e) => setHospWeeks(Number(e.target.value))}
-                    className="w-full rounded border border-slate-300 px-2 py-1 text-xs dark:border-slate-700"
-                  />
-                </div>
+                )}
               </div>
             )}
 
@@ -1203,12 +1561,18 @@ export default function IntegratedCalculatorPage() {
                 className="h-4 w-4 shrink-0 accent-[#007834]"
               />
               <InfoTooltip
-                label="Łączenie urlopu rodzicielskiego z pracą (maks. 1/2 etatu)"
+                label="Łączenie urlopu rodzicielskiego z pracą — Rodzic 1 (maks. 1/2 etatu, UoP)"
                 tooltip="Pracownik na umowie o pracę może pracować u swojego pracodawcy maks. na pół etatu podczas urlopu rodzicielskiego — urlop ulega wtedy proporcjonalnemu wydłużeniu (art. 182¹ᵉ i 182¹ᶠ KP)."
               />
             </label>
             {combineWork && (
-              <div className="space-y-2 pt-1">
+              <div className="space-y-2 rounded border border-slate-200 bg-slate-50/70 p-2.5 dark:border-slate-800 dark:bg-[#16241d]/70">
+                {insuranceTitle !== "uop" && (
+                  <p className="text-[11px] font-medium text-amber-800 dark:text-amber-300">
+                    Uwaga: ustawowe wydłużenie urlopu przy łączeniu z pracą z art. 182¹ᵉ–182¹ᶠ KP
+                    dotyczy wyłącznie pracowników (umowa o pracę).
+                  </p>
+                )}
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <label className="block text-[10px] text-slate-500 dark:text-slate-400">
@@ -1224,7 +1588,7 @@ export default function IntegratedCalculatorPage() {
                       step="any"
                       value={workFte}
                       onChange={(e) => setWorkFte(Number(e.target.value))}
-                      className="w-full rounded border border-slate-300 px-2 py-1 text-xs dark:border-slate-700"
+                      className="w-full rounded border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-700 dark:bg-[#111c17]"
                     />
                   </div>
                   <div>
@@ -1240,7 +1604,7 @@ export default function IntegratedCalculatorPage() {
                       max={58}
                       value={workWeeks}
                       onChange={(e) => setWorkWeeks(Number(e.target.value))}
-                      className="w-full rounded border border-slate-300 px-2 py-1 text-xs dark:border-slate-700"
+                      className="w-full rounded border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-700 dark:bg-[#111c17]"
                     />
                   </div>
                 </div>
@@ -1253,11 +1617,74 @@ export default function IntegratedCalculatorPage() {
                   />
                   <InfoTooltip
                     label="Praca na część etatu również podczas części wydłużonej (art. 182¹ᶠ § 7 KP)"
-                    tooltip="Zaznaczone (art. 182¹ᶠ § 7 KP): pracujesz również w okresie wydłużenia, więc wydłużenie wynosi T × etat / (1 - etat). Odznaczone (art. 182¹ᶠ § 2 KP): w okresie wydłużenia nie pracujesz, a wydłużenie wynosi T × etat."
+                    tooltip="Zaznaczone (art. 182¹ᶠ § 7 KP): pracujesz również w okresie wydłużenia, więc wydłużenie wynosi T × etat / (1 - etat). Odznaczone (art. 182¹ᶠ § 2 KP): w okresie wydłużenia nie pracujesz, a wydłużenie wynosi T × etat. Część niepełnego dnia ulega pominięciu (art. 182¹ᶠ § 4 KP)."
                   />
                 </label>
               </div>
             )}
+
+            {!singleParent &&
+              secondParentInsuranceTitle === "uop" &&
+              secondParentHasSickness &&
+              (fatherParentalWeeks > 0 ||
+                ((!insuredOnDate || insuranceTitle === "none") && secondParentInsuredClaim)) && (
+                <>
+                  <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300">
+                    <input
+                      type="checkbox"
+                      checked={fatherCombineWork}
+                      onChange={(e) => setFatherCombineWork(e.target.checked)}
+                      className="h-4 w-4 shrink-0 accent-[#007834]"
+                    />
+                    <InfoTooltip
+                      label="Łączenie urlopu rodzicielskiego z pracą — Rodzic 2 (maks. 1/2 etatu, UoP)"
+                      tooltip="Drugi rodzic zatrudniony na umowę o pracę może łączyć swoją część urlopu rodzicielskiego (zarówno 9 tyg. nieprzenoszalnych, jak i przejętą część wspólną) z pracą do 1/2 etatu."
+                    />
+                  </label>
+                  {fatherCombineWork && (
+                    <div className="space-y-2 rounded border border-slate-200 bg-slate-50/70 p-2.5 dark:border-slate-800 dark:bg-[#16241d]/70">
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-[10px] text-slate-500 dark:text-slate-400">
+                            Wymiar etatu Rodzica 2 (0.1–0.5)
+                          </label>
+                          <input
+                            type="number"
+                            min={0.1}
+                            max={0.5}
+                            step="any"
+                            value={fatherWorkFte}
+                            onChange={(e) => setFatherWorkFte(Number(e.target.value))}
+                            className="w-full rounded border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-700 dark:bg-[#111c17]"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] text-slate-500 dark:text-slate-400">
+                            Liczba tyg. pracy Rodzica 2
+                          </label>
+                          <input
+                            type="number"
+                            min={1}
+                            max={58}
+                            value={fatherWorkWeeks}
+                            onChange={(e) => setFatherWorkWeeks(Number(e.target.value))}
+                            className="w-full rounded border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-700 dark:bg-[#111c17]"
+                          />
+                        </div>
+                      </div>
+                      <label className="flex items-center gap-2 text-[11px] text-slate-700 dark:text-slate-300">
+                        <input
+                          type="checkbox"
+                          checked={fatherWorkDuringExtendedPart}
+                          onChange={(e) => setFatherWorkDuringExtendedPart(e.target.checked)}
+                          className="h-4 w-4 shrink-0 accent-[#007834]"
+                        />
+                        Praca Rodzica 2 również podczas części wydłużonej (art. 182¹ᶠ § 7 KP)
+                      </label>
+                    </div>
+                  )}
+                </>
+              )}
 
             {scenario === "birth" && (
               <div className="space-y-2 border-t border-slate-200 pt-2 dark:border-slate-800">
@@ -1278,7 +1705,7 @@ export default function IntegratedCalculatorPage() {
                   <label className="text-[11px] text-slate-600 dark:text-slate-400">
                     <InfoTooltip
                       label="Urlop macierzyński przed porodem (0–6 tyg., art. 180 § 2 KP)"
-                      tooltip="Kobieta w ciąży może wykorzystać do 6 tygodni urlopu macierzyńskiego jeszcze przed przewidywaną datą porodu — po porodzie przysługuje wówczas pozostała część wymiaru."
+                      tooltip="Kobieta w ciąży może wykorzystać do 6 tygodni urlopu macierzyńskiego jeszcze przed przewidywaną datą porodu — po porodzie musi wykorzystać min. 14 tyg. (lub 8 tyg. w przypadkach szczególnych), aby przekazać resztę ojcu."
                     />
                   </label>
                   <input
@@ -1338,7 +1765,9 @@ export default function IntegratedCalculatorPage() {
                         Podstawa Rodzica 1
                       </p>
                       <p className="mt-1 text-lg font-bold text-slate-900 dark:text-slate-100">
-                        {result.benefit_base_parent1.toFixed(2)} zł
+                        {result.benefit_base_parent1 > 0
+                          ? `${result.benefit_base_parent1.toFixed(2)} zł`
+                          : "—"}
                       </p>
                     </div>
                     <div className="rounded-lg bg-slate-50 p-4 dark:bg-[#16241d]">
@@ -1346,16 +1775,36 @@ export default function IntegratedCalculatorPage() {
                         Podstawa Rodzica 2
                       </p>
                       <p className="mt-1 text-lg font-bold text-slate-900 dark:text-slate-100">
-                        {result.benefit_base_parent2.toFixed(2)} zł
+                        {result.benefit_base_parent2 > 0
+                          ? `${result.benefit_base_parent2.toFixed(2)} zł`
+                          : "—"}
                       </p>
                     </div>
                   </div>
+
+                  {result.payout_suspended_due_to_debt && (
+                    <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs font-medium text-amber-900 dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-200">
+                      <strong>Wstrzymanie wypłaty zasiłku (art. 2a ustawy zasiłkowej):</strong>{" "}
+                      wykryto zadłużenie składkowe ZUS na JDG przekraczające 1% płacy minimalnej
+                      (48,06 zł). Prawo do świadczenia istnieje, jednak wypłata nastąpi dopiero po
+                      uregulowaniu zaległości (w ciągu 6 miesięcy od powstania prawa).
+                    </div>
+                  )}
 
                   {result.minimum_benefit_top_up_applied && (
                     <div className="mt-3 rounded-lg border border-emerald-300 bg-emerald-50 p-3 text-xs font-medium text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200">
                       Zastosowano ustawowe podwyższenie zasiłku macierzyńskiego do kwoty świadczenia
                       rodzicielskiego (min. 1 000,00 zł miesięcznie — art. 31 ust. 3a ustawy
                       zasiłkowej).
+                    </div>
+                  )}
+
+                  {result.equalization_to_100_pln > 0 && (
+                    <div className="mt-3 rounded-lg border border-emerald-300 bg-emerald-50 p-3 text-xs font-medium text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200">
+                      <strong>Jednorazowe wyrównanie do 100% (art. 31 ust. 4 ustawy zasiłkowej):</strong>{" "}
+                      +{result.equalization_to_100_pln.toFixed(2)} zł brutto za okres urlopu
+                      macierzyńskiego (niewykorzystanie ani jednego dnia zasiłku za urlop
+                      rodzicielski w wariancie 81,5%). Kwota została doliczona do łącznej sumy.
                     </div>
                   )}
 
@@ -1410,7 +1859,14 @@ export default function IntegratedCalculatorPage() {
                             <td className="p-2.5 text-slate-700 dark:text-slate-300">
                               {row.parent}
                             </td>
-                            <td className="p-2.5 text-right font-semibold">{row.weeks}</td>
+                            <td className="p-2.5 text-right font-semibold">
+                              {row.weeks}
+                              {row.days != null && row.days % 7 !== 0 && (
+                                <span className="block text-[10px] font-normal text-slate-500 dark:text-slate-400">
+                                  ({row.days} dni)
+                                </span>
+                              )}
+                            </td>
                             <td className="p-2.5 text-right">{row.rate_percent}%</td>
                             <td className="p-2.5 text-right">
                               {row.monthly_gross_pln.toFixed(2)} zł
@@ -1420,6 +1876,22 @@ export default function IntegratedCalculatorPage() {
                             </td>
                           </tr>
                         ))}
+                        {result.equalization_to_100_pln > 0 && (
+                          <tr className="border-b border-emerald-200 bg-emerald-50/70 dark:border-emerald-900 dark:bg-emerald-950/30">
+                            <td className="p-2.5 font-semibold text-[#005a27] dark:text-emerald-300">
+                              Jednorazowe wyrównanie do 100% za urlop macierzyński (art. 31 ust. 4)
+                            </td>
+                            <td className="p-2.5 text-slate-700 dark:text-slate-300">
+                              Rodzic 1 / Rodzic 2
+                            </td>
+                            <td className="p-2.5 text-right font-semibold">—</td>
+                            <td className="p-2.5 text-right">+18,5 p.p.</td>
+                            <td className="p-2.5 text-right">—</td>
+                            <td className="p-2.5 text-right font-bold text-[#005a27] dark:text-emerald-300">
+                              +{result.equalization_to_100_pln.toFixed(2)} zł
+                            </td>
+                          </tr>
+                        )}
                       </tbody>
                     </table>
                   </div>

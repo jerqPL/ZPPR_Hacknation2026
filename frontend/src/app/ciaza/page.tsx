@@ -5,7 +5,11 @@ import { PageHeader } from "@/components/PageHeader";
 import { InfoTooltip } from "@/components/InfoTooltip";
 import { useUser } from "@/components/UserContext";
 import { api } from "@/lib/api";
-import type { InsuranceTitle, PregnancyBenefitResponse } from "@/lib/types";
+import type {
+  InsuranceTitle,
+  PregnancyBenefitResponse,
+  WaitingPeriodExemptionReason,
+} from "@/lib/types";
 
 export default function PregnancyPage() {
   const { user } = useUser();
@@ -15,7 +19,9 @@ export default function PregnancyPage() {
   );
   const [hasVoluntary, setHasVoluntary] = useState(user ? user.has_sickness_insurance : true);
   const [insuranceDays, setInsuranceDays] = useState(user?.insurance_days ?? 180);
-  const [waitingExempt, setWaitingExempt] = useState(false);
+  const [waitingExemptionReason, setWaitingExemptionReason] =
+    useState<WaitingPeriodExemptionReason>("none");
+  const [fteFraction, setFteFraction] = useState(1.0);
   const [ageOver50, setAgeOver50] = useState(false);
   const [grossSalary, setGrossSalary] = useState(user?.declared_gross_salary ?? 6500);
   const [customBase, setCustomBase] = useState<string>("");
@@ -49,7 +55,9 @@ export default function PregnancyPage() {
         insurance_title: insuranceTitle,
         has_voluntary_sickness_insurance: hasVoluntary,
         insurance_days: Number(insuranceDays),
-        waiting_period_exempt: waitingExempt,
+        waiting_period_exempt: waitingExemptionReason !== "none",
+        waiting_period_exemption_reason: waitingExemptionReason,
+        fte_fraction: insuranceTitle === "uop" ? Math.max(0.05, Math.min(1.0, Number(fteFraction) || 1.0)) : 1.0,
         age_over_50: ageOver50,
         gross_monthly_salary: Number(grossSalary),
         custom_benefit_base:
@@ -68,12 +76,43 @@ export default function PregnancyPage() {
     }
   };
 
+  const getBadgeStyleAndLabel = (r: PregnancyBenefitResponse) => {
+    if (r.payout_suspended_due_to_debt) {
+      return {
+        cls: "border border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-600/40 dark:bg-amber-950/50 dark:text-amber-200",
+        label: "Wypłata wstrzymana — zadłużenie ZUS (art. 2a)",
+      };
+    }
+    if (r.eligible_maternity_equivalent) {
+      return {
+        cls: "border border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/15 dark:text-emerald-300",
+        label: "Zasiłek w wys. macierzyńskiego (100% do porodu)",
+      };
+    }
+    if (r.eligible_post_birth_maternity_art30 && !r.eligible_maternity_equivalent) {
+      return {
+        cls: "border border-sky-300 bg-sky-50 text-sky-900 dark:border-sky-600/40 dark:bg-sky-950/50 dark:text-sky-200",
+        label: "Brak zasiłku przed porodem — macierzyński PO porodzie (art. 30 ust. 1 pkt 2)",
+      };
+    }
+    if (r.eligible_sickness_benefit) {
+      return {
+        cls: "border border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/15 dark:text-emerald-300",
+        label: "Uprawnienie potwierdzone",
+      };
+    }
+    return {
+      cls: "border border-red-200 bg-red-50 text-red-800 dark:border-red-500/30 dark:bg-red-500/15 dark:text-red-300",
+      label: "Brak uprawnień",
+    };
+  };
+
   return (
     <div>
       <PageHeader
         badge="Okres ciąży"
         title="Świadczenia w czasie ciąży"
-        description="Sprawdź uprawnienia do zasiłku chorobowego (kod literowy B = 100% do 270 dni), świadczenia rehabilitacyjnego (100% do 12 miesięcy) oraz zasiłku w wysokości zasiłku macierzyńskiego po ustaniu zatrudnienia."
+        description="Sprawdź uprawnienia do zasiłku chorobowego (kod literowy B = 100% do 270 dni), świadczenia rehabilitacyjnego (100% do 12 miesięcy) oraz świadczeń po ustaniu zatrudnienia w ciąży (art. 7, art. 30 i art. 46 ustawy zasiłkowej)."
       />
 
       <div className="grid gap-8 lg:grid-cols-12">
@@ -150,39 +189,72 @@ export default function PregnancyPage() {
             </div>
           </div>
 
-          <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300">
-            <input
-              type="checkbox"
-              checked={waitingExempt}
-              onChange={(e) => setWaitingExempt(e.target.checked)}
-              className="h-4 w-4 shrink-0 accent-[#007834]"
-            />
-            <InfoTooltip
-              label="Zwolnienie z okresu wyczekiwania (art. 4 ust. 3 ustawy zasiłkowej)"
-              tooltip="Prawo do zasiłku od 1. dnia ubezpieczenia przysługuje m.in. osobom obowiązkowo ubezpieczonym z co najmniej 10-letnim wcześniejszym okresem obowiązkowego ubezpieczenia chorobowego oraz absolwentom szkół/uczelni w ciągu 90 dni od ukończenia nauki."
-            />
-          </label>
-
-          {insuranceTitle === "uop" && (
-            <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300">
-              <input
-                type="checkbox"
-                checked={ageOver50}
-                onChange={(e) => setAgeOver50(e.target.checked)}
-                className="h-4 w-4 shrink-0 accent-[#007834]"
-              />
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
               <InfoTooltip
-                label="Ukończony 50. rok życia (14 dni wynagrodzenia chorobowego zamiast 33 dni)"
-                tooltip="Zgodnie z art. 92 § 1 pkt 1 Kodeksu pracy pracodawca finansuje wynagrodzenie chorobowe przez 33 dni w roku kalendarzowym, a dla pracownika po ukończeniu 50. roku życia — przez 14 dni (od 15. dnia zasiłek finansuje FUS)."
+                label="Zwolnienie z okresu wyczekiwania (art. 4 ust. 3 ustawy zasiłkowej)"
+                tooltip="10-letni staż obowiązkowego ubezpieczenia (pkt 3) zwalnia wyłącznie na umowie o pracę. Absolwenci w ciągu 90 dni (pkt 1) i wypadek w drodze do/z pracy (pkt 2) dają prawo od 1. dnia także przy JDG i zleceniu."
               />
             </label>
+            <select
+              value={waitingExemptionReason}
+              onChange={(e) =>
+                setWaitingExemptionReason(e.target.value as WaitingPeriodExemptionReason)
+              }
+              className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-xs"
+            >
+              <option value="none">Brak zwolnienia (standardowo 30 dni UoP / 90 dni dobrowolne)</option>
+              <option value="mandatory_10_years">
+                Min. 10 lat obowiązkowego ubezpieczenia chorobowego (art. 4 ust. 3 pkt 3 — tylko UoP)
+              </option>
+              <option value="graduate_90_days">
+                Absolwent szkoły/uczelni/szkoły doktorskiej w ciągu 90 dni (art. 4 ust. 3 pkt 1 — UoP/JDG/zlecenie)
+              </option>
+              <option value="commute_accident">
+                Wypadek w drodze do pracy lub z pracy (art. 4 ust. 3 pkt 2 — UoP/JDG/zlecenie)
+              </option>
+            </select>
+          </div>
+
+          {insuranceTitle === "uop" && (
+            <div className="grid gap-3 sm:grid-cols-2 items-center">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  <InfoTooltip
+                    label="Wymiar etatu (art. 45)"
+                    tooltip="Minimalna podstawa wymiaru zasiłku pracownika (4 147,10 zł dla pełnego etatu w 2026 r.) ulega proporcjonalnemu zmniejszeniu przy niepełnym etacie (np. 0.5 etatu = 2 073,55 zł)."
+                  />
+                </label>
+                <input
+                  type="number"
+                  min={0.1}
+                  max={1.0}
+                  step="any"
+                  value={fteFraction}
+                  onChange={(e) => setFteFraction(Number(e.target.value))}
+                  className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
+                />
+              </div>
+              <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 pt-4">
+                <input
+                  type="checkbox"
+                  checked={ageOver50}
+                  onChange={(e) => setAgeOver50(e.target.checked)}
+                  className="h-4 w-4 shrink-0 accent-[#007834]"
+                />
+                <InfoTooltip
+                  label="Po roku ukończenia 50. r.ż. (14 dni zamiast 33)"
+                  tooltip="Zgodnie z art. 92 § 1 pkt 1 i § 5 KP skrócony 14-dniowy okres wynagrodzenia chorobowego od pracodawcy obowiązuje począwszy od roku kalendarzowego następującego po roku, w którym pracownik ukończył 50 lat."
+                />
+              </label>
+            </div>
           )}
 
           <div>
             <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
               <InfoTooltip
                 label="Indywidualna podstawa wymiaru zasiłku (opcjonalnie, zł po -13,71%)"
-                tooltip="Jeśli znasz swoją dokładną indywidualną podstawę wymiaru zasiłku (np. z formularza Z-3/Z-3a lub poświadczenia ZUS), wpisz ją tutaj."
+                tooltip="Jeśli znasz swoją dokładną indywidualną podstawę wymiaru zasiłku (np. z formularza Z-3/Z-3a lub Kreatora podstawy wg art. 48a dla JDG), wpisz ją tutaj."
               />
             </label>
             <input
@@ -196,39 +268,43 @@ export default function PregnancyPage() {
             />
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
-                Liczba ubezpieczonych u płatnika (stan na 30.11)
-              </label>
-              <input
-                type="number"
-                min={0}
-                value={employerCount}
-                onChange={(e) => setEmployerCount(Number(e.target.value))}
-                className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
-              />
-            </div>
-
-            {insuranceTitle === "jdg" && (
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
-                  <InfoTooltip
-                    label="Zaległość składkowa ZUS (zł)"
-                    tooltip="Art. 2a ustawy zasiłkowej: zadłużenie przekraczające 1% minimalnego wynagrodzenia (48,06 zł w 2026 r.) wstrzymuje wypłatę zasiłku na JDG do czasu spłaty."
+          {(insuranceTitle === "uop" || insuranceTitle === "zlecenie" || insuranceTitle === "jdg") && (
+            <div className="grid gap-4 sm:grid-cols-2">
+              {(insuranceTitle === "uop" || insuranceTitle === "zlecenie") && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    Liczba ubezpieczonych u płatnika (stan na 30.11)
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={employerCount}
+                    onChange={(e) => setEmployerCount(Number(e.target.value))}
+                    className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
                   />
-                </label>
-                <input
-                  type="number"
-                  min={0}
-                  step="any"
-                  value={contributionDebt}
-                  onChange={(e) => setContributionDebt(Number(e.target.value))}
-                  className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
-                />
-              </div>
-            )}
-          </div>
+                </div>
+              )}
+
+              {insuranceTitle === "jdg" && (
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    <InfoTooltip
+                      label="Zaległość składkowa ZUS (zł)"
+                      tooltip="Art. 2a ustawy zasiłkowej: zadłużenie przekraczające 1% minimalnego wynagrodzenia (48,06 zł w 2026 r.) wstrzymuje wypłatę zasiłku na JDG do czasu spłaty (przedawnienie po 6 miesiącach)."
+                    />
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    step="any"
+                    value={contributionDebt}
+                    onChange={(e) => setContributionDebt(Number(e.target.value))}
+                    className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
+                  />
+                </div>
+              )}
+            </div>
+          )}
 
           <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
             <input
@@ -249,8 +325,8 @@ export default function PregnancyPage() {
                 className="h-4 w-4 shrink-0 accent-[#007834]"
               />
               <InfoTooltip
-                label="Szczególna sytuacja: utrata zatrudnienia w ciąży (zasiłek w wys. macierzyńskiego)"
-                tooltip="Art. 30 ust. 3 ustawy zasiłkowej: w razie upadłości, likwidacji, śmierci pracodawcy albo rozwiązania umowy z naruszeniem przepisów prawa (stwierdzonym wyrokiem sądu) przysługuje do dnia porodu zasiłek w wysokości zasiłku macierzyńskiego (100%)."
+                label="Szczególna sytuacja: utrata zatrudnienia / ustanie ubezpieczenia w ciąży"
+                tooltip="Art. 30 ust. 3 (upadłość, likwidacja lub śmierć pracodawcy — zasiłek w wys. macierzyńskiego do porodu), art. 30 ust. 1 pkt 2 (wyrok sądu — zasiłek macierzyński po porodzie) oraz art. 7 i 46 (chorobowy po ustaniu ubezpieczenia)."
               />
             </label>
             {specialTermination && (
@@ -259,10 +335,14 @@ export default function PregnancyPage() {
                 onChange={(e) => setTerminationReason(e.target.value)}
                 className="mt-2 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#111c17] px-3 py-2 text-xs"
               >
-                <option value="bankruptcy_liquidation">Upadłość lub likwidacja pracodawcy (art. 30 ust. 3)</option>
-                <option value="employer_death">Śmierć pracodawcy (art. 30 ust. 3)</option>
+                <option value="bankruptcy_liquidation">
+                  Upadłość lub likwidacja pracodawcy (art. 30 ust. 3 — do dnia porodu)
+                </option>
+                <option value="employer_death">
+                  Śmierć pracodawcy (art. 30 ust. 3 — do dnia porodu)
+                </option>
                 <option value="unlawful_termination_court_ruling">
-                  Rozwiązanie umowy z naruszeniem prawa — prawomocny wyrok sądu (art. 30 ust. 3)
+                  Rozwiązanie umowy z naruszeniem prawa — wyrok sądu (art. 30 ust. 1 pkt 2 — macierzyński po porodzie)
                 </option>
                 <option value="post_employment_art7">
                   Zasiłek chorobowy po ustaniu ubezpieczenia w ciąży — do 14 dni od ustania (art. 7 i 46)
@@ -289,19 +369,14 @@ export default function PregnancyPage() {
                 <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">
                   Wynik analizy
                 </h2>
-                <span
-                  className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                    result.eligible_sickness_benefit || result.eligible_maternity_equivalent
-                      ? "border border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/15 dark:text-emerald-300"
-                      : "border border-red-200 bg-red-50 text-red-800 dark:border-red-500/30 dark:bg-red-500/15 dark:text-red-300"
-                  }`}
-                >
-                  {result.eligible_maternity_equivalent
-                    ? "Zasiłek w wys. macierzyńskiego (100%)"
-                    : result.eligible_sickness_benefit
-                    ? "Uprawnienie potwierdzone"
-                    : "Brak uprawnień"}
-                </span>
+                {(() => {
+                  const badge = getBadgeStyleAndLabel(result);
+                  return (
+                    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${badge.cls}`}>
+                      {badge.label}
+                    </span>
+                  );
+                })()}
               </div>
 
               <p className="mt-3 text-sm text-slate-700 dark:text-slate-300">{result.summary}</p>
@@ -317,7 +392,13 @@ export default function PregnancyPage() {
                 </div>
                 <div className="rounded-lg bg-[#e6f4ec] dark:bg-[#007834]/20 p-4">
                   <p className="text-xs text-[#005a27] dark:text-emerald-300">
-                    Zasiłek miesięczny ({result.benefit_rate_percent}%)
+                    {result.eligible_post_birth_maternity_art30 && !result.eligible_maternity_equivalent
+                      ? `Prognoza PO porodzie (${result.benefit_rate_percent}%)`
+                      : !result.waiting_period_met && result.benefit_base_monthly > 0
+                      ? `Prognoza po wyczekiwaniu (${result.benefit_rate_percent}%)`
+                      : result.payout_suspended_due_to_debt
+                      ? `Po spłacie zadłużenia (${result.benefit_rate_percent}%)`
+                      : `Zasiłek miesięczny (${result.benefit_rate_percent}%)`}
                   </p>
                   <p className="mt-1 text-lg font-bold text-[#005a27] dark:text-emerald-300">
                     {result.monthly_benefit_gross.toFixed(2)} zł
@@ -346,10 +427,12 @@ export default function PregnancyPage() {
                 </div>
                 <div className="rounded border border-slate-100 dark:border-slate-800 p-2.5">
                   <dt className="text-slate-500 dark:text-slate-400">
-                    Okres zasiłkowy / finansowanie
+                    Okres świadczenia / finansowanie
                   </dt>
                   <dd className="font-semibold text-slate-900 dark:text-slate-100">
-                    {result.max_benefit_days === 0
+                    {result.benefit_duration_label
+                      ? result.benefit_duration_label
+                      : result.max_benefit_days === 0
                       ? "Brak okresu zasiłkowego"
                       : result.employer_pay_days > 0
                       ? `Maks. ${result.max_benefit_days} dni (pierwsze ${result.employer_pay_days} dni wynagrodzenie chorobowe pracodawcy, od ${result.employer_pay_days + 1}. dnia zasiłek z FUS)`
@@ -374,8 +457,8 @@ export default function PregnancyPage() {
           ) : (
             <div className="rounded-xl border border-dashed border-slate-300 dark:border-slate-700 bg-white dark:bg-[#111c17] p-8 text-center text-sm text-slate-500 dark:text-slate-400">
               Uzupełnij formularz po lewej i kliknij „Sprawdź uprawnienia”, aby zobaczyć wyliczenie
-              zasiłku chorobowego, świadczenia rehabilitacyjnego oraz zasiłku w wysokości zasiłku
-              macierzyńskiego.
+              zasiłku chorobowego, świadczenia rehabilitacyjnego oraz świadczeń po ustaniu
+              zatrudnienia w ciąży.
             </div>
           )}
 
@@ -389,22 +472,22 @@ export default function PregnancyPage() {
               jej świadczenie rehabilitacyjne przez okres do 12 miesięcy (360 dni). W okresie ciąży
               wynosi ono <strong>100% zwaloryzowanej podstawy wymiaru zasiłku chorobowego</strong>.
             </p>
-            {result && (result.eligible_sickness_benefit || result.eligible_maternity_equivalent) && (
+            {result && result.eligible_sickness_benefit && result.rehabilitation_max_days > 0 && (
               <div className="mt-3 grid gap-2 rounded-lg bg-slate-50 dark:bg-[#16241d] p-3 sm:grid-cols-2">
                 <div>
                   <span className="text-slate-500 dark:text-slate-400">
-                    Szacowane świadczenie rehabilitacyjne (100% mies.):
+                    Szacowane świadczenie rehabilitacyjne (100% mies., przed waloryzacją):
                   </span>
                   <p className="text-sm font-bold text-[#005a27] dark:text-emerald-300">
-                    {(result.rehabilitation_monthly_gross ?? result.benefit_base_monthly).toFixed(2)} zł
+                    {result.rehabilitation_monthly_gross.toFixed(2)} zł
                   </p>
                 </div>
                 <div>
                   <span className="text-slate-500 dark:text-slate-400">
-                    Stawka dzienna (maks. {result.rehabilitation_max_days ?? 360} dni):
+                    Stawka dzienna (maks. {result.rehabilitation_max_days} dni):
                   </span>
                   <p className="text-sm font-bold text-slate-900 dark:text-slate-100">
-                    {(result.rehabilitation_daily_gross ?? result.daily_benefit_gross).toFixed(2)} zł / dzień
+                    {result.rehabilitation_daily_gross.toFixed(2)} zł / dzień
                   </p>
                 </div>
               </div>

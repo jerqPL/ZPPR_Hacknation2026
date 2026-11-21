@@ -47,8 +47,8 @@ def test_pregnancy_post_employment_art7_and_art46_cap():
     data = res.json()
     assert data["eligible_sickness_benefit"] is True
     assert data["payer"] == "Zakład Ubezpieczeń Społecznych (ZUS)"
-    # Cap: 9420 * (1 - 0.1371) = 8128.52
-    assert abs(data["benefit_base_monthly"] - 8128.52) < 0.05
+    # Art. 46: podstawa wymiaru (już po -13.71%) nie może przekroczyć 100% przeciętnego wynagrodzenia = 9420.00 zł
+    assert abs(data["benefit_base_monthly"] - 9420.00) < 0.05
 
 
 def test_waiting_period_10y_exemption_only_for_mandatory():
