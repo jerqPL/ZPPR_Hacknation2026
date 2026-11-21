@@ -175,3 +175,16 @@ class CaseDocumentsAnalysisResult(BaseModel):
     documents: list[PdfAnalysisResult]
     merged: PdfAnalysisResult
     conflicts: list[DocumentConflict] = Field(default_factory=list)
+
+
+class DocumentAnalysisJobStatus(BaseModel):
+    job_id: str
+    status: Literal["queued", "processing", "completed", "failed"]
+    files_total: int
+    files_processed: int = 0
+    current_file: Optional[str] = None
+    pages_processed: int = 0
+    pages_total: int = 0
+    result: Optional[CaseDocumentsAnalysisResult] = None
+    error: Optional[str] = None
+

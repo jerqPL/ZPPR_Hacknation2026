@@ -120,6 +120,24 @@ export const api = {
     return res.json();
   },
 
+  startAnalyzeCaseAsync: async (files: File[]): Promise<import("./types").DocumentAnalysisJobStatus> => {
+    const form = new FormData();
+    for (const file of files) {
+      form.append("files", file);
+    }
+    const res = await fetch(`${API_BASE}/documents/analyze-case-async`, {
+      method: "POST",
+      body: form,
+    });
+    if (!res.ok) {
+      throw new Error(`Błąd uruchamiania analizy OCR (${res.status})`);
+    }
+    return res.json();
+  },
+
+  getDocumentJob: (jobId: string) =>
+    apiFetch<import("./types").DocumentAnalysisJobStatus>(`/documents/jobs/${encodeURIComponent(jobId)}`),
+
   getRisks: () => apiFetch<RiskItem[]>("/guidance/risks"),
   getSupportOrganizations: () => apiFetch<SupportOrganization[]>("/guidance/support-organizations"),
   getOfficialLinks: () => apiFetch<OfficialLink[]>("/guidance/official-links"),

@@ -350,3 +350,16 @@ export interface LegalParameters {
   funeral_grant_pln: number;
   claim_limitation_months: number;
 }
+
+export interface DocumentAnalysisJobStatus {
+  job_id: string;
+  status: "queued" | "processing" | "completed" | "failed";
+  files_total: number;
+  files_processed: number;
+  current_file?: string | null;
+  pages_processed: number;
+  pages_total: number;
+  result?: CaseDocumentsAnalysisResult | null;
+  error?: string | null;
+}
+

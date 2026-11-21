@@ -198,3 +198,45 @@ def test_poswiadczenie_debt_nie_vs_tak():
     res_yes = analyze_pdf_bytes("posw_with_debt.pdf", pdf_with_debt)
     assert res_yes.extracted_fields.has_contribution_debt is True
 
+
+def test_async_ocr_job_endpoint_and_no_16_page_limit():
+    """Endpoint /analyze-case-async działa nieblokująco z pollingiem /jobs/{id}, a parser czyta >16 stron."""
+    import time
+
+    pdf = FPDF(format="A4")
+    pdf.add_font("DejaVu", "", FONT_PATH)
+    for page_no in range(1, 21):
+        pdf.add_page()
+        pdf.set_font("DejaVu", "", 10)
+        if page_no == 1:
+            pdf.multi_cell(0, 6, "WNIOSEK O ZASIŁEK MACIERZYŃSKI ZUS ZAM")
+        elif page_no == 19:
+            pdf.multi_cell(0, 6, "DECYZJA ZUS: ODMÓWIĆ PRAWA DO ZASIŁKU MACIERZYŃSKIEGO")
+        else:
+            pdf.multi_cell(0, 6, f"Strona pomocnicza {page_no}")
+    raw_20p = bytes(pdf.output())
+
+    start = client.post(
+        "/api/v1/documents/analyze-case-async",
+        files=[("files", ("sprawa_20_stron.pdf", raw_20p, "application/pdf"))],
+    )
+    assert start.status_code == 200
+    job = start.json()
+    job_id = job["job_id"]
+    assert job["files_total"] == 1
+
+    for _ in range(40):
+        poll = client.get(f"/api/v1/documents/jobs/{job_id}")
+        assert poll.status_code == 200
+        job = poll.json()
+        if job["status"] in ("completed", "failed"):
+            break
+        time.sleep(0.05)
+
+    assert job["status"] == "completed"
+    merged = job["result"]["merged"]
+    assert merged["extracted_fields"]["page_count"] == 20
+    # Treść ze strony 19/20 musi zostać odczytana (brak limitu 16 stron!)
+    assert merged["verification_status"] == "denied"
+
+

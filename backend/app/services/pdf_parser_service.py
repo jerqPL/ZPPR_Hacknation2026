@@ -1,12 +1,15 @@
 from __future__ import annotations
 
-from concurrent.futures import ThreadPoolExecutor
+import asyncio
+from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date
 import io
 import os
 from pathlib import Path
 import re
 import shutil
+import threading
 import xml.etree.ElementTree as ET
 from pypdf import PdfReader
 from pypdf.generic import ArrayObject, StreamObject
@@ -206,7 +209,8 @@ ZUS_FORM_CATALOG: list[tuple[str, re.Pattern[str], str]] = [
     ),
     ("ZUR", re.compile(r"\b(?:ZUS\s+)?ZUR\b"), "Wniosek o zasiłek macierzyński za okres urlopu rodzicielskiego (połączony z ZAM)"),
     ("ZAO", re.compile(r"\b(?:ZUS\s+)?ZAO\b|\bZAS-34\b"), "Wniosek o zasiłek macierzyński za okres urlopu ojcowskiego (połączony z ZAM)"),
-    ("ZAS-53", re.compile(r"\bZAS-?53\b", re.IGNORECASE), "Wniosek o zasiłek chorobowy"),
+    ("ZAS-53", re.compile(r"\bZAS[-\s]?53\b", re.IGNORECASE), "Wniosek o zasiłek chorobowy"),
+    ("ZAS-55", re.compile(r"\bZAS[-<\s]?55\b", re.IGNORECASE), "Wniosek o zasiłek w wysokości zasiłku macierzyńskiego"),
     ("ZAS-12", re.compile(r"\bZAS-?12\b", re.IGNORECASE), "Zaświadczenie płatnika składek (dalszy okres zasiłku)"),
     ("ZAS-36", re.compile(r"\bZAS-?36\b", re.IGNORECASE), "Wniosek o zasiłek opiekuńczy z powodu sprawowania opieki nad dzieckiem"),
     ("ZAS-38", re.compile(r"\bZAS-?38\b", re.IGNORECASE), "Wniosek o zasiłek opiekuńczy (inny członek rodziny)"),
@@ -217,7 +221,7 @@ ZUS_FORM_CATALOG: list[tuple[str, re.Pattern[str], str]] = [
     ("ZNP-7", re.compile(r"\bZNP-?7\b", re.IGNORECASE), "Wniosek o świadczenie rehabilitacyjne"),
     ("E-ZLA", re.compile(r"\bE-?ZLA\b|\bZUS\s+ZLA\b|ZAŚWIADCZENIE\s+LEKARSKIE\s+O\s+CZASOWEJ\s+NIEZDOLNOŚCI", re.IGNORECASE), "Elektroniczne zaświadczenie lekarskie o niezdolności do pracy"),
     ("POG", re.compile(r"\bZUS\s+POG\b|PISMO\s+OGÓLNE\s+DO\s+ZAKŁADU\s+UBEZPIECZEŃ", re.IGNORECASE), "Pismo ogólne do ZUS (POG)"),
-    ("ERU", re.compile(r"\bERU\b"), "Oświadczenie o sytuacji osobistej, rodzinnej, majątkowej i materialnej (rodzicielskie świadczenie uzupełniające Mama 4+)"),
+    ("ERU", re.compile(r"\b(?:ZUS\s+|WNIOSEK\s+|OŚWIADCZENIE\s+|FORMULARZ\s+)ERU\b|RODZICIELSKIE\s+ŚWIADCZENIE\s+UZUPEŁNIAJĄCE", re.IGNORECASE), "Oświadczenie o sytuacji osobistej, rodzinnej, majątkowej i materialnej (rodzicielskie świadczenie uzupełniające Mama 4+)"),
     ("ERSU", re.compile(r"\bERSU\b"), "Wniosek o rodzicielskie świadczenie uzupełniające (Mama 4+)"),
     ("ZUS ZUA", re.compile(r"\bZUS\s+ZUA\b|\bZUA\b"), "Zgłoszenie do ubezpieczeń społecznych i zdrowotnego"),
     ("ZUS ZZA", re.compile(r"\bZUS\s+ZZA\b"), "Zgłoszenie wyłącznie do ubezpieczenia zdrowotnego"),
@@ -278,15 +282,17 @@ def is_tesseract_available() -> bool:
     return shutil.which("tesseract") is not None
 
 
-def _ocr_pil_image(img) -> str:
+def _ocr_pil_image(img, *, upscale_small: bool = True) -> str:
     import pytesseract  # type: ignore[import-untyped]
     from PIL import ImageOps
 
-    gray = ImageOps.autocontrast(ImageOps.grayscale(img))
-    w, h = gray.size
-    if w < 1200:
-        scale = min(2.5, 1400.0 / max(1, w))
-        gray = gray.resize((int(w * scale), int(h * scale)))
+    os.environ.setdefault("OMP_THREAD_LIMIT", "1")
+    gray = img if img.mode == "L" else ImageOps.autocontrast(ImageOps.grayscale(img))
+    if upscale_small:
+        w, h = gray.size
+        if w < 1000:
+            scale = min(2.2, 1200.0 / max(1, w))
+            gray = gray.resize((int(w * scale), int(h * scale)))
 
     for lang in ("pol", "eng"):
         try:
@@ -307,20 +313,22 @@ def _ocr_image_bytes(content: bytes) -> tuple[str, bool, list[str]]:
         from PIL import Image
 
         with Image.open(io.BytesIO(content)) as img:
-            txt = _ocr_pil_image(img)
+            txt = _ocr_pil_image(img, upscale_small=True)
             return txt, True, notes
     except Exception as exc:
         notes.append(f"Nie udało się odczytać obrazu przez OCR: {exc}")
         return "", False, notes
 
 
-def _ocr_pdf_scan_bytes(content: bytes, max_pages: int = 16) -> tuple[str, int, int, bool, list[str]]:
+def _ocr_pdf_scan_bytes(
+    content: bytes,
+    max_pages: int | None = None,
+    progress_cb: Callable[[int, int], None] | None = None,
+) -> tuple[str, int, int, bool, list[str]]:
     """
-    Thread-safe lokalny OCR (Tesseract PL) dla wielostronicowych skanów PDF (np. sprawy ZUS 8–74 str.).
+    Thread-safe lokalny OCR (Tesseract PL) dla wielostronicowych skanów PDF (bez limitu stron — domyślnie wszystkie strony).
     Renderuje strony sekwencyjnie przez pypdfium2 (wymagane dla bezpieczeństwa wątkowego),
-    a następnie uruchamia Tesseract równolegle na wielu rdzeniach.
-    Dla bardzo dużych plików (>16 str.) analizuje pierwsze 10 stron i ostatnie 6 stron (wnioski + Z-3 + decyzja ZUS),
-    oraz wykonuje dodatkowy skan wysokiej rozdzielczości dla stron z tabelą zarobków.
+    a następnie uruchamia Tesseract równolegle na wielu rdzeniach z OMP_THREAD_LIMIT=1.
     """
     notes: list[str] = []
     if not is_tesseract_available():
@@ -334,6 +342,7 @@ def _ocr_pdf_scan_bytes(content: bytes, max_pages: int = 16) -> tuple[str, int, 
         notes.append(f"Brak bibliotek do rasteryzacji/OCR skanu PDF: {exc}")
         return "", 0, 0, False, notes
 
+    os.environ.setdefault("OMP_THREAD_LIMIT", "1")
     try:
         doc = pdfium.PdfDocument(content)
         total_pages = len(doc)
@@ -341,59 +350,60 @@ def _ocr_pdf_scan_bytes(content: bytes, max_pages: int = 16) -> tuple[str, int, 
             doc.close()
             return "", 0, 0, False, notes
 
-        if total_pages <= max_pages:
+        if max_pages is None or total_pages <= max_pages:
             selected_indices = list(range(total_pages))
         else:
-            head_n = 10
-            tail_n = max_pages - head_n
-            selected_indices = list(range(head_n)) + list(range(total_pages - tail_n, total_pages))
+            head_n = min(10, max_pages)
+            tail_n = max(0, max_pages - head_n)
+            selected_indices = list(range(head_n)) + (
+                list(range(total_pages - tail_n, total_pages)) if tail_n > 0 else []
+            )
 
-        # 1. Sekwencyjny render (pypdfium2 nie jest thread-safe!)
+        total_selected = len(selected_indices)
+        if progress_cb:
+            progress_cb(0, total_selected)
+
+        # 1. Sekwencyjny render (pypdfium2 nie jest thread-safe!) bezpośrednio w optymalnej rozdzielczości (scale=1.65)
         rendered: list[tuple[int, object]] = []
         for idx in selected_indices:
-            img = doc[idx].render(scale=1.45).to_pil()
+            img = doc[idx].render(scale=1.65).to_pil()
             rendered.append((idx, ImageOps.autocontrast(ImageOps.grayscale(img))))
+        doc.close()
 
-        # 2. Równoległy OCR stron
+        # 2. Równoległy OCR stron (OMP_THREAD_LIMIT=1 eliminuje rywalizację wątków OpenMP)
         workers = min(4, max(1, os.cpu_count() or 2))
+        results_by_idx: dict[int, str] = {}
+        done_count = 0
+        done_lock = threading.Lock()
 
         def _run_ocr(item: tuple[int, object]) -> tuple[int, str]:
             idx, pil_img = item
-            return idx, _ocr_pil_image(pil_img)
+            return idx, _ocr_pil_image(pil_img, upscale_small=False)
 
         with ThreadPoolExecutor(max_workers=workers) as ex:
-            page_results = list(ex.map(_run_ocr, rendered))
+            futures = [ex.submit(_run_ocr, item) for item in rendered]
+            for fut in as_completed(futures):
+                idx, txt = fut.result()
+                results_by_idx[idx] = txt
+                if progress_cb:
+                    with done_lock:
+                        done_count += 1
+                        progress_cb(done_count, total_selected)
 
-        # 3. Dodatkowy skan wyższej rozdzielczości dla max 2 stron z tabelą wynagrodzeń / poświadczeniem
-        hires_targets = [
-            idx
-            for idx, txt in page_results
-            if re.search(r"SKŁADNIK[IÓW]\s+WYNAGRODZEN|POŚWIADCZENI[EU]\s+UBEZPIECZENI|PODSTAWA\s+WYMIARU\s+SKŁADEK", txt, re.IGNORECASE)
-        ][:2]
-        if hires_targets:
-            hires_rendered = [
-                (idx, ImageOps.autocontrast(ImageOps.grayscale(doc[idx].render(scale=2.2).to_pil())))
-                for idx in hires_targets
-            ]
-            with ThreadPoolExecutor(max_workers=workers) as ex:
-                hires_results = dict(ex.map(_run_ocr, hires_rendered))
-            page_results = [(idx, hires_results.get(idx, txt)) for idx, txt in page_results]
-
-        doc.close()
-
+        page_results = [(idx, results_by_idx.get(idx, "")) for idx in selected_indices]
         ocr_text = "\n\n".join(
             f"[Strona {idx + 1}/{total_pages}]\n{txt}" for idx, txt in page_results if txt.strip()
         ).strip()
 
-        if total_pages > max_pages:
+        if max_pages is not None and total_pages > max_pages:
             notes.append(
-                f"Dokument jest skanem ({total_pages} str.) — zastosowano lokalny OCR (Tesseract PL) dla {len(selected_indices)} kluczowych stron (pierwsze 10 + ostatnie {max_pages - 10})."
+                f"Dokument jest skanem ({total_pages} str.) — zastosowano lokalny OCR (Tesseract PL) dla {total_selected} stron."
             )
         else:
             notes.append(
                 f"Dokument jest skanem bez warstwy tekstowej — zastosowano lokalny OCR (Tesseract PL) dla wszystkich {total_pages} stron."
             )
-        return ocr_text, total_pages, len(selected_indices), True, notes
+        return ocr_text, total_pages, total_selected, True, notes
     except Exception as exc:
         notes.append(f"Nie udało się uruchomić lokalnego OCR dla skanu PDF: {exc}")
         return "", 0, 0, False, notes
@@ -560,7 +570,7 @@ def _strip_zus_boilerplate(text: str) -> str:
     z druków ZUS (np. ZAM/Z-3/ZAS-53), aby nie wywoływały fałszywych trafień.
     """
     cleaned = re.sub(
-        r"INSTRUKCJA\s+WYPE[ŁL]NIANIA[\s\S]{0,1100}?(?=(?:TWOJE\s+DANE|DANE\s+PŁATNIKA|DANE\s+UBEZPIECZ|DANE\s+WNIOSKODAWC|ZAKRES\s+WNIOSKU|\[Strona|\Z))",
+        r"(?:INSTRUKCJ[AE]\s+WYPE[ŁL]NI[AE]N[A-Z]*|WYPE[ŁL]NIJ\s+(?:TO\s+ZA[ŚS]WIADCZENIE|TEN\s+WNIOSEK))[\s\S]{0,1100}?(?=(?:TWOJE\s+DANE|DANE\s+P[ŁL]ATNIKA|DANE\s+OSOBY\s+UBEZPIECZ|DANE\s+UBEZPIECZ|DANE\s+WNIOSKODAWC|ZAKRES\s+WNIOSKU|\[Strona|\Z))",
         "\n",
         text,
         flags=re.IGNORECASE,
@@ -571,13 +581,30 @@ def _strip_zus_boilerplate(text: str) -> str:
         cleaned,
         flags=re.IGNORECASE,
     )
-    # Usuń wiersze zaczynające się od niezaznaczonego pola wyboru (np. "[]", "[ ]", "[|]", "[.]", "[LD]")
-    # oraz standardową niezaznaczoną klauzulę na ZAM ("rozwiązał ze mną umowę o pracę z naruszeniem")
+    # Standardowe niezaznaczone wiersze szablonu druków ZAM / Z-3 / USC (nie usuwaj, jeśli wiersz ma wyraźny znak [X]/☑/✓/✔)
+    checked_prefix = re.compile(r"^\s*(?:\[[X✓✔]\]|[☑✓✔]|X\s+)", re.IGNORECASE)
+    boilerplate_line_pat = re.compile(
+        r"ROZWI[ĄA]ZA[ŁL]\s+ZE\s+MN[ĄA]\s+UMOW[ĘE]\s+O\s+PRAC[ĘE]\s+Z\s+NARUSZENIEM|"
+        r"JEDYNIE\s+Z\s+TYTU[ŁL]U\s+PROWADZENIA\s+POZAROLNICZEJ\s+DZIA[ŁL]ALNO[ŚS]CI|"
+        r"PRZEPISY\s+DOTYCZ[ĄA]CE\s+ZLECENIA|"
+        r"DATA,?\s*DO\s+KT[ÓO]REJ\s+ZAWARTA\s+JEST\s+UMOWA\s+ZLECENIA|"
+        r"URLOPU\s+NA\s+WARUNKACH\s+URLOPU\s+MACIERZY[ŃN]SKIEGO[,\.\s]+URLOPU\s+OJCOWSK|"
+        r"ZASI[ŁL]KU\s+OPIEKU[ŃN]CZEGO,\s*ZASI[ŁL]KU\s+MACIERZY[ŃN]SKIEGO|"
+        r"ZASI[ŁL]KU\s+W\s+WYSOKO[ŚS]CI\s+ZASI[ŁL]KU\s+MACIERZY[ŃN]SKIEGO,\s*ZASI[ŁL]KU\s+WYR[ÓO]WNAWCZEGO|"
+        r"JE[ŚS]LI\s+PRACOWNIK\s+WYS[TŁ][ĘE]PUJE\s+O\s+ZASI[ŁL]EK\s+MACIERZY|"
+        r"CZY\s+WYP[ŁL]ACI[ŁL]E[ŚS]\s+ZASI[ŁL]EK\s+MACIERZY|"
+        r"WNIOSEK\s+DOTYCZY\s+ZASI[ŁL]KU\s+MACIERZY|"
+        r"W\s+SPRAWIE\s+JEGO\s+PRZYSPOSOBIENIA|"
+        r"WYJ[ĄA][TŁFL][A-Z]{0,3}(?:KIEM|EM)\s+|RODZIN[AYĘ]\s+Z[AE]S[TI][ĘE]PCZ[A-Z]*\s+ZAW[I]?ODOW|"
+        r"(?:W\s*RAMACH|RZENACH|LAM)\s+RODZ[IŁ]N[AYĘ]\s+Z[AE]S[TI][ĘE]PCZ|"
+        r"NIE\s+PODLEGA\s+OP[ŁL]ACIE\s+SKARBOWEJ",
+        re.IGNORECASE,
+    )
     filtered_lines: list[str] = []
     for line in cleaned.splitlines():
         if re.match(r"^\s*(?:\d+\.\s*)?(?:\[\s*\]|\[\s*[|lI\._]\s*\]|\(\s*\)|L\])\s+", line):
             continue
-        if re.search(r"ROZWIĄZAŁ\s+ZE\s+MNĄ\s+UMOWĘ\s+O\s+PRACĘ\s+Z\s+NARUSZENIEM", line, re.IGNORECASE):
+        if not checked_prefix.search(line) and boilerplate_line_pat.search(line):
             continue
         filtered_lines.append(line)
     return "\n".join(filtered_lines)
@@ -837,9 +864,15 @@ def _extract_letter_codes_and_ezla(
     return ezla_num, incapacity_period, incapacity_days, codes, has_code_b
 
 
-def analyze_pdf_bytes(filename: str, content: bytes) -> PdfAnalysisResult:
+def analyze_pdf_bytes(
+    filename: str,
+    content: bytes,
+    *,
+    progress_cb: Callable[[int, int], None] | None = None,
+) -> PdfAnalysisResult:
     """
     Uniwersalny deterministyczny parser dokumentów ZUS (warstwa tekstowa + AcroForm + XFA XML + lokalny OCR PL dla skanów i obrazów).
+    Przetwarza wszystkie strony dokumentu (bez limitu 16 stron).
     Zasada 'zero zgadywania': każde pole nieodczytane z dokumentu pozostaje puste (None).
     """
     file_kind = detect_file_kind(filename, content)
@@ -854,7 +887,11 @@ def analyze_pdf_bytes(filename: str, content: bytes) -> PdfAnalysisResult:
 
     if file_kind == "image":
         page_count = 1
+        if progress_cb:
+            progress_cb(0, 1)
         ocr_text, used, ocr_notes = _ocr_image_bytes(content)
+        if progress_cb:
+            progress_cb(1, 1)
         notes.extend(ocr_notes)
         ocr_used = used
         ocr_pages_processed = 1 if used else 0
@@ -866,7 +903,7 @@ def analyze_pdf_bytes(filename: str, content: bytes) -> PdfAnalysisResult:
         try:
             reader = PdfReader(io.BytesIO(content))
             page_count = len(reader.pages)
-            pages_text = [(page.extract_text() or "") for page in reader.pages[:16]]
+            pages_text = [(page.extract_text() or "") for page in reader.pages]
             text = "\n".join(pages_text).strip()
             form_fields, field_entries = _extract_acroform_and_xfa_fields(reader)
         except Exception as exc:
@@ -875,7 +912,11 @@ def analyze_pdf_bytes(filename: str, content: bytes) -> PdfAnalysisResult:
             notes.append(f"Nie udało się odczytać struktury pliku PDF: {exc}")
 
         if not pdf_parse_failed and len(text) < 25 and not form_fields:
-            ocr_text, total_p, done_p, used, ocr_notes = _ocr_pdf_scan_bytes(content, max_pages=16)
+            ocr_text, total_p, done_p, used, ocr_notes = _ocr_pdf_scan_bytes(
+                content,
+                max_pages=None,
+                progress_cb=progress_cb,
+            )
             notes.extend(ocr_notes)
             if total_p:
                 page_count = total_p
@@ -889,6 +930,50 @@ def analyze_pdf_bytes(filename: str, content: bytes) -> PdfAnalysisResult:
                 notes.append(
                     "Dokument nie zawiera warstwy tekstowej ani pól formularza. Zweryfikuj i uzupełnij pola ręcznie."
                 )
+        elif not pdf_parse_failed and progress_cb:
+            progress_cb(page_count, page_count)
+
+    return _analyze_extracted_content(
+        filename=filename,
+        file_kind=file_kind,
+        text=text,
+        form_fields=form_fields,
+        field_entries=field_entries,
+        notes=notes,
+        ocr_required=ocr_required,
+        ocr_used=ocr_used,
+        page_count=page_count,
+        ocr_pages_processed=ocr_pages_processed,
+    )
+
+
+async def analyze_pdf_bytes_async(
+    filename: str,
+    content: bytes,
+    *,
+    progress_cb: Callable[[int, int], None] | None = None,
+) -> PdfAnalysisResult:
+    """Asynchroniczna (nieblokująca pętli zdarzeń FastAPI) analiza pojedynczego dokumentu PDF/obrazu."""
+    return await asyncio.to_thread(analyze_pdf_bytes, filename, content, progress_cb=progress_cb)
+
+
+def _analyze_extracted_content(
+    *,
+    filename: str,
+    file_kind: str,
+    text: str,
+    form_fields: dict[str, str] | None = None,
+    field_entries: list[tuple[str, str]] | None = None,
+    notes: list[str] | None = None,
+    ocr_required: bool = False,
+    ocr_used: bool = False,
+    page_count: int = 0,
+    ocr_pages_processed: int = 0,
+) -> PdfAnalysisResult:
+    """Deterministyczna analiza już wyekstrahowanego tekstu (z warstwy tekstowej lub OCR) oraz pól formularza."""
+    form_fields = form_fields or {}
+    field_entries = field_entries or []
+    notes = list(notes or [])
 
     fields_blob = "\n".join(f"{k}: {v}" for k, v in field_entries)
     combined_text = f"{text}\n{fields_blob}".strip()
@@ -901,6 +986,8 @@ def analyze_pdf_bytes(filename: str, content: bytes) -> PdfAnalysisResult:
     if not detected:
         fn_upper = filename.upper().replace("_", " ")
         detected = [code for code, pat in _FORM_PATTERNS if pat.search(fn_upper)]
+        if "ERU" not in detected and re.search(r"\bERU\b", fn_upper):
+            detected.append("ERU")
         if detected:
             notes.append(f"Kod formularza ({', '.join(detected)}) rozpoznano pomocniczo na podstawie nazwy pliku.")
     else:
@@ -914,13 +1001,17 @@ def analyze_pdf_bytes(filename: str, content: bytes) -> PdfAnalysisResult:
     pesel_raw = _extract_pesel(combined_text, field_entries)
     pesel_masked = _mask_pesel(pesel_raw) if pesel_raw else None
 
-    # 3. Kod tytułu ubezpieczenia ZUS (np. 01 10, 04 11, 05 10, 05 70)
+    # 3. Kod tytułu ubezpieczenia ZUS (np. 01 10, 04 11, 05 10, 05 70, 051000)
     zus_title_code: str | None = None
-    m_zcode = re.search(r"(?:KOD\s+TYTUŁU(?:\s+UBEZPIECZENIA)?|TYTUŁ\s+UBEZPIECZENIA)\s*[:\-]?\s*(0[145]\s?\d{2})", clean_upper)
+    m_zcode = re.search(
+        r"(?:KOD\s+TYTU[ŁL]U(?:\s+UBEZPIECZENIA)?|TYTU[ŁL]\s+UBEZPIECZENIA|Z\s+TYTU[ŁL]U)\s*[:\-]?\s*(0[145]\s?\d{2})(?:\d{2})?",
+        clean_upper,
+    )
     if m_zcode:
         zus_title_code = re.sub(r"\s+", "", m_zcode.group(1))
 
     # 4. Tytuł ubezpieczenia — ZERO ZGADYWANIA (zaczyna jako None!)
+    is_zam_attachment_checklist = primary_form == "ZAM" and "Z-3" in detected and "Z-3A" in detected
     suggested_title: str | None = None
     if primary_form in ("ERU", "ERSU"):
         suggested_title = "none"
@@ -929,21 +1020,24 @@ def analyze_pdf_bytes(filename: str, content: bytes) -> PdfAnalysisResult:
         )
     elif zus_title_code and zus_title_code in _ZUS_TITLE_CODE_MAP:
         suggested_title = _ZUS_TITLE_CODE_MAP[zus_title_code][0]
-    elif primary_form == "Z-3A" or re.search(r"UMOW[AYĘ]\s+ZLECEN", clean_upper):
+    elif (
+        primary_form == "Z-3A"
+        or ("Z-3A" in detected and not is_zam_attachment_checklist)
+        or re.search(r"UMOW[AYĘ]\s+ZLECEN", clean_upper)
+    ):
         suggested_title = "zlecenie"
     elif (
         primary_form == "Z-3B"
-        or re.search(r"DZIAŁALNOŚC[IĄ]\s+GOSPODARCZ|POZAROLNICZ[ĄA]\s+DZIAŁALNOŚ|OSOB[AY]\s+WSPÓŁPRACUJĄC|OSOB[AY]\s+PROWADZĄC[AEY]\s+DZIAŁALNOŚ", clean_upper)
+        or ("Z-3B" in detected and not is_zam_attachment_checklist)
+        or re.search(r"DZIA[ŁL]ALNO[ŚS]C[IĄ]\s+GOSPODARCZ|POZAROLNICZ[ĄA]\s+DZIA[ŁL]ALNO[ŚS]|OSOB[AY]\s+WSP[ÓO][ŁL]PRACUJ[ĄA]C|OSOB[AY]\s+PROWADZ[ĄA]C[AEY]\s+DZIA[ŁL]ALNO[ŚS]", clean_upper)
     ):
         suggested_title = "jdg"
-    elif re.search(r"UMOW[AYĘ]\s+O\s+PRAC[ĘE]|STOSUNKU\s+PRACY", clean_upper):
+    elif (
+        primary_form in ("Z-3", "WNIOSEK URLOPOWY KP")
+        or ("Z-3" in detected and not is_zam_attachment_checklist)
+        or re.search(r"UMOW[AYĘ]\s+O\s+PRAC[ĘE]|STOSUNKU\s+PRACY|Z\s+TYTU[ŁL]U\s+ZATRUDNIENIA", clean_upper)
+    ):
         suggested_title = "uop"
-    elif primary_form in ("Z-3", "WNIOSEK URLOPOWY KP") or ("Z-3" in detected and primary_form != "ZAM"):
-        suggested_title = "uop"
-    elif "Z-3A" in detected and primary_form != "ZAM":
-        suggested_title = "zlecenie"
-    elif "Z-3B" in detected and primary_form != "ZAM":
-        suggested_title = "jdg"
 
     # 5. Zwolnienie chorobowe, kody literowe A-E i ciąża (ZERO wymuszania ciąży!)
     ezla_num, incapacity_period, incapacity_days, letter_codes, has_code_b = _extract_letter_codes_and_ezla(
@@ -953,7 +1047,7 @@ def analyze_pdf_bytes(filename: str, content: bytes) -> PdfAnalysisResult:
     if has_code_b is True:
         pregnancy_confirmed = True
     elif re.search(
-        r"ZASIŁEK\s+CHOROBOWY\s+W\s+CIĄŻY|W\s+OKRESIE\s+CIĄŻY|STAN\s+CIĄŻY|CIĄŻA\s+POTWIERDZONA|ZASIŁEK\s+W\s+WYSOKOŚCI\s+ZASIŁKU\s+MACIERZYŃSKIEGO",
+        r"ZASI[ŁL]EK\s+CHOROBOWY\s+W\s+CI[ĄA][ŻZ]Y|ZASI[ŁL]KU\s+CHOROBOWEGO\s+(?:DLA\s+KOBIETY\s+)?W\s+CI[ĄA][ŻZ]Y|W\s+OKRESIE\s+CI[ĄA][ŻZ]Y|STAN\s+CI[ĄA][ŻZ]Y|CI[ĄA][ŻZ]A\s+POTWIERDZONA|ZASI[ŁL]EK\s+W\s+WYSOKO[ŚS]CI\s+ZASI[ŁL]KU\s+MACIERZY[ŃN]SKIEGO",
         clean_upper,
     ):
         pregnancy_confirmed = True
@@ -965,16 +1059,19 @@ def analyze_pdf_bytes(filename: str, content: bytes) -> PdfAnalysisResult:
     # Szczególne ustanie zatrudnienia / ubezpieczenia (art. 30 / art. 7)
     employment_terminated_special: bool | None = None
     termination_reason: str | None = None
-    if re.search(r"ZASIŁEK\s+W\s+WYSOKOŚCI\s+ZASIŁKU\s+MACIERZYŃSKIEGO|Z\s+POWODU\s+(?:LIKWIDACJI|UPADŁOŚCI)", clean_upper):
+    if "ZAS-55" in detected or re.search(
+        r"ZASI[ŁL]EK\s+W\s+WYSOKO[ŚS]CI\s+ZASI[ŁL]KU\s+MACIERZY[ŃN]SKIEGO|Z\s+POWODU\s+(?:LIKWIDACJI|UPAD[ŁL]O[ŚS]CI)",
+        clean_upper,
+    ):
         employment_terminated_special = True
         termination_reason = "bankruptcy_liquidation"
-    elif re.search(r"ŚMIERC[IĄ]\s+PRACODAWCY", clean_upper):
+    elif re.search(r"[ŚS]MIERC[IĄ]\s+PRACODAWCY", clean_upper):
         employment_terminated_special = True
         termination_reason = "employer_death"
-    elif re.search(r"NARUSZENIEM\s+PRZEPISÓW\s+PRAWA.*WYROK|PRAWOMOCNYM\s+ORZECZENIEM\s+SĄDU", clean_upper):
+    elif re.search(r"NARUSZENIEM\s+PRZEPIS[ÓO]W\s+PRAWA.*WYROK", clean_upper):
         employment_terminated_special = True
         termination_reason = "unlawful_termination_court_ruling"
-    elif primary_form == "Z-10" or re.search(r"PO\s+USTANIU\s+(?:TYTUŁU\s+)?UBEZPIECZENIA", clean_upper):
+    elif primary_form == "Z-10" or re.search(r"PO\s+USTANIU\s+(?:TYTU[ŁL]U\s+)?UBEZPIECZENIA|USTANIU\s+ZATRUDNIENIA", clean_upper):
         employment_terminated_special = True
         termination_reason = "post_employment_art7"
 
@@ -995,53 +1092,112 @@ def analyze_pdf_bytes(filename: str, content: bytes) -> PdfAnalysisResult:
                     break
     if children_count is None:
         m_kids = re.search(
-            r"URODZIŁAM\s+0?(\d{1,2})\s+DZIECI|LICZBA\s+DZIECI[^\d]{0,15}0?(\d{1,2})|\b([2-9])\s+DZIECI\b",
+            r"URODZI[ŁL]AM\s+0?(\d{1,2})\s+DZIECI|LICZBA\s+DZIECI[^\d]{0,15}0?(\d{1,2})|\b([2-9])\s+DZIECI\b",
             clean_upper,
         )
         if m_kids:
             val_c = int(m_kids.group(1) or m_kids.group(2) or m_kids.group(3))
             if 1 <= val_c <= 15:
                 children_count = val_c
-        elif re.search(r"BLIŹNI[ĘE]T|BLIŹNIAK", clean_upper):
+        elif re.search(r"BLI[ŹZ]NI[ĘE]T|BLI[ŹZ]NIAK|CI[ĄA][ŻZ][AY]\s+BLI[ŹZ]NIACZ", clean_upper):
             children_count = 2
-        elif re.search(r"TROJACZK", clean_upper):
+        elif re.search(r"TROJACZK|TR[ÓO]JKI\s+DZIECI|TROJGA\s+DZIECI", clean_upper):
             children_count = 3
 
     # 7. Dane macierzyńskie / rodzicielskie (tylko gdy faktycznie obecne w treści!)
+    has_adoption_hit = False
+    for m_ad in re.finditer(
+        r"PRZYJ[ĘE]CI[AE]\s+DZIECKA\s+NA\s+WYCHOWANIE|"
+        r"ORZECZENI[AE]\s+O\s+PRZYSPOSOBIENI|"
+        r"ORZEC\s+PRZYSPOSOBIENI|"
+        r"POSTANOWIENI[AE][^\n]{0,80}PRZYSPOSOBIENI|"
+        r"\bADOPCJ[AIĘ]\b|"
+        r"\[[X✓✔]\]\s*[^\[\]\n]{0,25}PRZYSPOSOBIENI",
+        clean_upper,
+    ):
+        window = clean_upper[m_ad.start() : m_ad.end() + 90]
+        if not re.search(r"JE[ŚS][ŁL]?I?\s+(?:WNIOSEK\s+)?DOTYCZY|JE[ŻZ]ELI\s+(?:WNIOSEK\s+)?DOTYCZY", window):
+            has_adoption_hit = True
+            break
+
     scenario: str | None = None
-    if re.search(r"PRZYSPOSOBIENI|ADOPCJ", clean_upper):
+    if has_adoption_hit and not re.search(r"RODZIN[AYĘ]\s+ZAST[ĘE]PCZ", clean_upper):
         scenario = "adoption"
-    elif re.search(r"RODZIN[AYĘ]\s+ZASTĘPCZ", clean_upper):
+    elif re.search(r"RODZIN[AYĘ]\s+ZAST[ĘE]PCZ", clean_upper):
         scenario = "foster"
     elif (
-        primary_form in ("ZAM", "ZUR", "ZAO", "WNIOSEK URLOPOWY KP", "AKT URODZENIA USC")
-        or re.search(r"ZASIŁEK\s+MACIERZYŃSKI|URLOP\s+MACIERZYŃSKI|URLOP\s+RODZICIELSKI|URLOP\s+OJCOWSKI|URODZENI[EA]\s+DZIECKA|MARTWE\s+URODZENIE", clean_upper)
+        any(f in detected for f in ("ZAM", "ZUR", "ZAO", "ZAS-55", "WNIOSEK URLOPOWY KP", "AKT URODZENIA USC"))
+        or re.search(
+            r"ZASI[ŁL]EK\s+MACIERZY[ŃN]SKI|ZASI[ŁL]KU\s+MACIERZY[ŃN]SKIEGO|ZAS\.?\s*MACIERZY[ŃN]SK|"
+            r"URLOP\s+MACIERZY[ŃN]SKI|URLOP\s+RODZICIELSKI|URLOP\s+OJCOWSKI|"
+            r"URODZENI[EA]\s+DZIECKA|MARTW(?:E|O|YM)\s+URODZEN",
+            clean_upper,
+        )
     ):
         scenario = "birth"
 
     payment_variant: str | None = None
-    if re.search(r"81[,\.]5\s*%|PEŁNEGO\s+WYMIARU\s+URLOPU\s+MACIERZYŃSKIEGO\s+I\s+RODZICIELSKIEGO", clean_upper):
+    if re.search(r"81[,\.]5\s*%|PE[ŁL]NEGO\s+WYMIARU\s+URLOPU\s+MACIERZY[ŃN]SKIEGO\s+I\s+RODZICIELSKIEGO", clean_upper):
         payment_variant = "81_5"
     elif re.search(r"100\s*%.*70\s*%", clean_upper):
         payment_variant = "100_70"
 
     has_za_zyciem: bool | None = None
     for m_zz in re.finditer(
-        r"ZAŚWIADCZENI[EA]\s+[\"„']?ZA\s+ŻYCIEM|ART\.\s*4\s+UST\.\s*3\s+USTAWY.*ZA\s+ŻYCIEM",
+        r"ZA[ŚS]WIADCZENI[EA]\s+[\"„']?ZA\s+[ŻZ]YCIEM|ART\.\s*4\s+UST\.\s*3\s+USTAWY.*ZA\s+[ŻZ]YCIEM|"
+        r"USTAW[AY]\s+[\"„']?ZA\s+[ŻZ]YCIEM|NIEODWRACALN[EA]\s+UPO[ŚS]LEDZENI[EA]|NIEULECZALN[ĄA]\s+CHOR[ÓO]B",
         clean_upper,
     ):
         window = clean_upper[m_zz.start() : m_zz.end() + 120]
         if not re.search(r"JE[ŚS]LI\s+DOTYCZY|JE[ŻZ]ELI\s+DOTYCZY", window):
             has_za_zyciem = True
             break
-    stillbirth: bool | None = True if re.search(r"MARTW(?:E|O)\s*URODZEN|MARTWOURODZON", clean_upper) else None
-    premature: bool | None = True if re.search(r"WCZEŚNIAK|UZUPEŁNIAJĄC(?:Y|EGO)\s+URLOP(?:U)?\s+MACIERZYŃSK|MASA\s+PONIŻEJ\s+1000", clean_upper) else None
-    combine_work: bool | None = True if re.search(r"ŁĄCZENIE\s+URLOPU\s+RODZICIELSKIEGO\s+Z\s+PRACĄ|ŁĄCZENIE\s+KORZYSTANIA\s+Z\s+URLOPU\s+RODZICIELSKIEGO", clean_upper) else None
-    father_paternity: bool | None = True if (primary_form == "ZAO" or re.search(r"URLOP(?:U)?\s+OJCOWSK", clean_upper)) else None
-    mother_uninsured: bool | None = True if re.search(r"MATKA\s+(?:DZIECKA\s+)?NIE\s+POSIADA\s+TYTUŁU|MATKA\s+NIEUBEZPIECZONA", clean_upper) else None
+    stillbirth: bool | None = (
+        True
+        if re.search(
+            r"MARTW(?:E|O|YM|EGO)\s*(?:URODZEN|URO[A-Z]{2,8}|DZIECK|URODZI)|"
+            r"URODZENI[UA]\s+MARTW|URODZI[ŁL]O\s+SI[ĘE]\s+MARTW|MARTWOURODZON|"
+            r"AR[T]?\.?\s*180['¹1]\s*[§$S]?\s*1\b|WYMIARZE\s+8\s+TYGODNI\s+OD\s+DNIA\s+PORODU",
+            clean_upper,
+        )
+        else None
+    )
+    premature: bool | None = (
+        True
+        if re.search(
+            r"WCZE[ŚS]NIAK|MASA\s+PONI[ŻZ]EJ\s+1000|PRZEDWCZE[ŚS]NIE\s+URODZON|"
+            r"UZUPE[ŁL]NIAJ[ĄA]C[YEA]G?O?\s+UR[ŁL]OP[U]?\s+[MW]ACIERZY|"
+            r"ZASI[ŁL]KU\s+UZUPE[ŁL]NIAJ[ĄA]C|URLOPU\s+PODSTAWOWEGO,\s*UZUPE[ŁL]NIAJ[ĄA]CEGO|"
+            r"HOSPITALIZACJ[AEI]\s+[A-Z]?DZIECK|HOSPITALIZACJ[AEI]\s+IZIECK",
+            clean_upper,
+        )
+        else None
+    )
+    combine_work: bool | None = (
+        True
+        if re.search(
+            r"[ŁL][ĄA]CZEN(?:IE|IA)\s+(?:KORZYSTANIA\s+Z\s+)?URLOPU\s+RODZICIELSKIEGO(?:\s+Z\s+(?:WYKONYWANIEM\s+)?PRAC)?|"
+            r"[ŁL][ĄA]CZY[ŁL][A]?[^\n]{0,40}URLOP(?:U)?\s+RODZICIELSK[\s\S]{0,40}Z\s+(?:WYKONYWANIEM\s+)?PRAC",
+            clean_upper,
+        )
+        else None
+    )
+    father_paternity: bool | None = (
+        True
+        if (primary_form == "ZAO" or re.search(r"URLOP(?:U)?\s+OJCOWSK", clean_upper))
+        else None
+    )
+    mother_uninsured: bool | None = (
+        True
+        if re.search(
+            r"MATKA\s+(?:DZIECKA\s+)?NIE\s+POSIADA\s+TYTU[ŁL]U|MATKA\s+NIEUBEZPIECZONA|MATKA\s+(?:DZIECKA\s+)?NIE\s+PODLEGA\s+UBEZPIECZENI",
+            clean_upper,
+        )
+        else None
+    )
 
     gestation_week: int | None = None
-    m_gest = re.search(r"(\d{2})\.?\s*(?:TYDZIEŃ|TYGODNIU|HBD|TC)\s*(?:CIĄŻY)?", clean_upper)
+    m_gest = re.search(r"(\d{2})\.?\s*(?:TYDZIE[ŃN]|TYGODNIU|HBD|TC)\s*(?:CI[ĄA][ŻZ]Y)?", clean_upper)
     if m_gest:
         gw = int(m_gest.group(1))
         if 20 <= gw <= 42:
@@ -1119,19 +1275,24 @@ def analyze_pdf_bytes(filename: str, content: bytes) -> PdfAnalysisResult:
     # 11. Ostrożna weryfikacja statusu ubezpieczenia (3-stanowa: confirmed / denied / unknown; odporna na braki diakrytyków OCR)
     has_explicit_denial = bool(
         re.search(
-            r"NIE\s+PODLEGA|NIE\s+JEST\s+OBJ[EĘ]T[YA]\s+(?:OBOWI[AĄ]ZKOWYM\s+|DOBROWOLNYM\s+)?UBEZPIECZENIEM\s+CHOROBOWYM|"
-            r"BRAK\s+(?:ZG[LŁ]OSZENIA\s+DO\s+)?UBEZPIECZENIA\s+CHOROBOWEGO|BRAK\s+ZG[LŁ]OSZENIA\s+DO\s+UBEZPIECZE[NŃ]|"
-            r"ODMOWA\s+PRAWA|ODM[OÓ]WI[CĆ]\s+PRAWA|DECYZJA\s+ODMAWIAJ[AĄ]CA|DECYZJA\s+ODMOWNA|"
-            r"WY[LŁ][AĄ]CZON[YA]\s+Z\s+UBEZPIECZENIA|UBEZPIECZENIE\s+CHOROBOWE\s*:\s*NIE|UMOWA\s+DLA\s+POZORU",
+            r"\bNIE\s+PODLEGA(?:[ŁL][AO]?)?\s+(?:OBOWI[AĄ]ZKOW[OE]?M?U?\s+|DOBROWOLN[EI]?M?U?\s+)?UBEZPIECZENI|"
+            r"\bNIE\s+JEST\s+OBJ[EĘ]T[YA]\s+(?:OBOWI[AĄ]ZKOWYM\s+|DOBROWOLNYM\s+)?UBEZPIECZENIEM\s+CHOROBOWYM|"
+            r"\bBRAK\s+(?:ZG[LŁ]OSZENIA\s+DO\s+)?UBEZPIECZENIA\s+CHOROBOWEGO|\bBRAK\s+ZG[LŁ]OSZENIA\s+DO\s+UBEZPIECZE[NŃ]|"
+            r"\bODMOWA\s+PRAWA|\bODM[OÓ]WI[CĆ]\s+PRAWA|\bODMAWIA\s+PRAWA|DM[OÓ]WIONO\s+PRAWA|"
+            r"\bDECYZJ[AĘ]\s+ODMAWIAJ[AĄ]C[AĄ]|\bDECYZJ[AĘ]\s+ODMOWN[AĄ]|\bSPRAWA\s+ZAKO[ŃN]CZONA\s+ODMOW[ĄA]|"
+            r"\bBRAK\s+PRAWA\s+DO\s+ZASI[ŁL]KU|\bNIE\s+PRZYS[ŁL]UGUJE\s+PRAWO\s+DO\s+ZASI[ŁL]KU|"
+            r"\bWY[LŁ][AĄ]CZON[YA]\s+Z\s+UBEZPIECZENIA|UBEZPIECZENIE\s+CHOROBOWE\s*:\s*NIE|\bUMOWA\s+DLA\s+POZORU",
             clean_upper,
         )
     )
     has_explicit_confirmation = bool(
         re.search(
-            r"PODLEGA(?:Ł[AO]?)?\s+(?:OBOWIĄZKOWEMU\s+|DOBROWOLNEMU\s+)?UBEZPIECZENIU\s+CHOROBOWEMU|"
-            r"OBJĘT[YA]\s+(?:OBOWIĄZKOWYM\s+|DOBROWOLNYM\s+)?UBEZPIECZENIEM\s+CHOROBOWYM|"
+            r"\bPODLEGA(?:[ŁL][AO]?)?\s+(?:OBOWI[AĄ]ZKOWEMU\s+|DOBROWOLNEMU\s+)?UBEZPIECZENIU\s+CHOROBOWEMU|"
+            r"\bOBJ[EĘ]T[YA]\s+(?:OBOWI[AĄ]ZKOWYM\s+|DOBROWOLNYM\s+)?UBEZPIECZENIEM\s+CHOROBOWYM|"
             r"UBEZPIECZENIE\s+CHOROBOWE\s*:\s*TAK|"
-            r"PRZYZNANO\s+ZASIŁEK|PRZYZNAĆ\s+PRAWO|ZASIŁEK\s+MACIERZYŃSKI\s+WYPŁACON",
+            r"\bPRZYZNANO\s+ZASI[ŁL]EK|\bPRZYZNA[ĆCŁL]\s+PRAWO|\bDECYZJ[AĘ]\s+PRZYZNAJ[ĄA]C[AĄ]|"
+            r"\bZASI[ŁL]EK\s+MACIERZY[ŃN]SKI\s+WYP[ŁL]ACON|\bSPRAWA\s+ZAKO[ŃN]CZONA\s+WYP[ŁL]AT[ĄAEĘ]|"
+            r"\bZOSTA[ŁL]A\s+DOKONANA\s+WYP[ŁL]ATA|\bUSTALONO\s+UPRAWNIENIA|\bWYP[ŁL]ACONO\s+[ŚS]WIADCZENI",
             clean_upper,
         )
     )
@@ -1198,6 +1359,7 @@ def analyze_pdf_bytes(filename: str, content: bytes) -> PdfAnalysisResult:
     recommended_calculator: RecommendedCalculator = "both"
     guidance_banner: str | None = None
 
+    has_maternity_form = any(f in detected for f in ("ZAM", "ZUR", "ZAO", "ZAS-55", "WNIOSEK URLOPOWY KP", "AKT URODZENIA USC"))
     if primary_form in ("ZAS-36", "ZAS-38", "Z-15A", "Z-15B"):
         document_domain = "care_benefit"
         recommended_calculator = "info_only"
@@ -1211,7 +1373,14 @@ def analyze_pdf_bytes(filename: str, content: bytes) -> PdfAnalysisResult:
         guidance_banner = (
             f"Rozpoznano formularz {primary_form} ({form_desc}). To odrębne świadczenie pozachorobowe — sprawdź szczegóły w sekcji Wsparcie i Dokumenty."
         )
-    elif primary_form in ("ZAM", "ZUR", "ZAO", "WNIOSEK URLOPOWY KP", "AKT URODZENIA USC") or (
+    elif (
+        pregnancy_confirmed is True
+        and not has_maternity_form
+        and scenario is None
+    ):
+        document_domain = "sickness_pregnancy"
+        recommended_calculator = "pregnancy_sickness"
+    elif primary_form in ("ZAM", "ZUR", "ZAO", "ZAS-55", "WNIOSEK URLOPOWY KP", "AKT URODZENIA USC") or (
         scenario in ("birth", "adoption", "foster") and primary_form not in ("E-ZLA", "ZAS-53", "ZAS-12", "ZNP-7", "Z-10")
     ):
         document_domain = "maternity_parental"
@@ -1360,9 +1529,25 @@ def analyze_pdf_bytes(filename: str, content: bytes) -> PdfAnalysisResult:
     )
 
 
-def analyze_case_documents(files: list[tuple[str, bytes]]) -> CaseDocumentsAnalysisResult:
+def analyze_case_documents(
+    files: list[tuple[str, bytes]],
+    *,
+    progress_cb: Callable[[int, int, str, int, int], None] | None = None,
+) -> CaseDocumentsAnalysisResult:
     """Analizuje zestaw 1..N dokumentów jednej sprawy, scala pola według wiarygodności źródła i wykrywa sprzeczności."""
-    docs = [analyze_pdf_bytes(fn, data) for fn, data in files]
+    total_files = len(files)
+    docs: list[PdfAnalysisResult] = []
+    for idx, (fn, data) in enumerate(files):
+        def _file_progress(done_pages: int, total_pages: int, _idx: int = idx, _fn: str = fn) -> None:
+            if progress_cb:
+                progress_cb(_idx, total_files, _fn, done_pages, total_pages)
+
+        if progress_cb:
+            progress_cb(idx, total_files, fn, 0, 0)
+        docs.append(analyze_pdf_bytes(fn, data, progress_cb=_file_progress if progress_cb else None))
+        if progress_cb:
+            p_cnt = docs[-1].extracted_fields.page_count
+            progress_cb(idx + 1, total_files, fn, p_cnt, p_cnt)
     if len(docs) == 1:
         return CaseDocumentsAnalysisResult(documents=docs, merged=docs[0], conflicts=[])
 
@@ -1577,3 +1762,13 @@ def analyze_case_documents(files: list[tuple[str, bytes]]) -> CaseDocumentsAnaly
     )
 
     return CaseDocumentsAnalysisResult(documents=docs, merged=merged, conflicts=conflicts)
+
+
+async def analyze_case_documents_async(
+    files: list[tuple[str, bytes]],
+    *,
+    progress_cb: Callable[[int, int, str, int, int], None] | None = None,
+) -> CaseDocumentsAnalysisResult:
+    """Asynchroniczna (nieblokująca pętli zdarzeń FastAPI) analiza zestawu dokumentów sprawy."""
+    return await asyncio.to_thread(analyze_case_documents, files, progress_cb=progress_cb)
+

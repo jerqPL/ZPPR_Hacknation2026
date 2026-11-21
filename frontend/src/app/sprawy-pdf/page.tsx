@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PageHeader } from "@/components/PageHeader";
 import { PREGNANCY_PREFILL_STORAGE_KEY } from "@/components/PregnancyCalculatorPanel";
@@ -8,6 +8,7 @@ import { api } from "@/lib/api";
 import type {
   BenefitScenario,
   CaseDocumentsAnalysisResult,
+  DocumentAnalysisJobStatus,
   InsuranceTitle,
   PaymentVariant,
   PdfAnalysisResult,
@@ -68,10 +69,16 @@ export default function SampleCasesPdfPage() {
   const [confirmFatherPaternity, setConfirmFatherPaternity] = useState(false);
 
   const [uploading, setUploading] = useState(false);
+  const [ocrJob, setOcrJob] = useState<DocumentAnalysisJobStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const mountedRef = useRef(true);
 
   useEffect(() => {
+    mountedRef.current = true;
     api.getSampleCases().then(setCases).catch((e) => setError(String(e)));
+    return () => {
+      mountedRef.current = false;
+    };
   }, []);
 
   const openInCalculator = (prefill: Record<string, unknown>) => {
@@ -174,21 +181,35 @@ export default function SampleCasesPdfPage() {
     if (!fileList || fileList.length === 0) return;
     const files = Array.from(fileList);
     setUploading(true);
+    setOcrJob(null);
     setError(null);
     try {
-      if (files.length === 1) {
-        const res = await api.analyzePdf(files[0]);
-        setCaseResult({ documents: [res], merged: res, conflicts: [] });
-        populateFormFromResult(res);
-      } else {
-        const res = await api.analyzeCase(files);
-        setCaseResult(res);
-        populateFormFromResult(res.merged);
+      let job = await api.startAnalyzeCaseAsync(files);
+      if (mountedRef.current) setOcrJob(job);
+
+      while (job.status === "queued" || job.status === "processing") {
+        await new Promise((resolve) => setTimeout(resolve, 600));
+        if (!mountedRef.current) return;
+        job = await api.getDocumentJob(job.job_id);
+        if (mountedRef.current) setOcrJob(job);
+      }
+
+      if (job.status === "failed") {
+        throw new Error(job.error || "Błąd analizy OCR dokumentu.");
+      }
+      if (job.result && mountedRef.current) {
+        setCaseResult(job.result);
+        populateFormFromResult(job.result.merged);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Błąd analizy dokumentu");
+      if (mountedRef.current) {
+        setError(err instanceof Error ? err.message : "Błąd analizy dokumentu");
+      }
     } finally {
-      setUploading(false);
+      if (mountedRef.current) {
+        setUploading(false);
+        setOcrJob(null);
+      }
       e.target.value = "";
     }
   };
@@ -296,20 +317,50 @@ export default function SampleCasesPdfPage() {
           <label className="mt-4 flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-6 text-center transition hover:border-[#007834] dark:border-slate-700 dark:bg-[#16241d]">
             <span className="text-sm font-semibold text-[#007834] dark:text-emerald-400">
               {uploading
-                ? "Analizowanie dokumentu (dla skanów trwa lokalny OCR)..."
+                ? "Analizowanie dokumentu w tle (lokalny OCR PL — wszystkie strony)..."
                 : "Wybierz plik(i) PDF lub skany PNG/JPG z dysku"}
             </span>
             <span className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-              Do 10 plików w sprawie • maks. 10 MB / plik
+              Do 10 plików w sprawie • maks. 10 MB / plik • pełny OCR bez limitu stron
             </span>
             <input
               type="file"
               multiple
+              disabled={uploading}
               accept="application/pdf,image/png,image/jpeg,image/webp,image/tiff"
               onChange={handleUpload}
               className="hidden"
             />
           </label>
+
+          {uploading && ocrJob && (
+            <div className="mt-3 rounded-lg border border-sky-200 bg-sky-50 p-3 text-xs text-sky-900 dark:border-sky-800/50 dark:bg-sky-950/30 dark:text-sky-200">
+              <div className="flex items-center justify-between gap-2 font-semibold">
+                <span className="truncate">
+                  {ocrJob.current_file ? `Plik: ${ocrJob.current_file}` : "Przetwarzanie OCR..."}
+                </span>
+                <span className="shrink-0">
+                  {ocrJob.pages_total > 0
+                    ? `Strona ${ocrJob.pages_processed}/${ocrJob.pages_total} (${Math.round(
+                        (ocrJob.pages_processed / ocrJob.pages_total) * 100
+                      )}%)`
+                    : `Pliki: ${ocrJob.files_processed}/${ocrJob.files_total}`}
+                </span>
+              </div>
+              <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-sky-200/70 dark:bg-sky-900/60">
+                <div
+                  className="h-full rounded-full bg-[#007834] transition-all duration-300 dark:bg-emerald-400"
+                  style={{
+                    width: `${
+                      ocrJob.pages_total > 0
+                        ? Math.min(100, Math.max(5, Math.round((ocrJob.pages_processed / ocrJob.pages_total) * 100)))
+                        : 15
+                    }%`,
+                  }}
+                />
+              </div>
+            </div>
+          )}
 
           {pdfResult && (
             <div className="mt-5 space-y-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs dark:border-emerald-950 dark:bg-[#16241d]">
