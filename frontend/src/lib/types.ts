@@ -179,12 +179,17 @@ export interface SampleCase {
 
 export interface ExtractedPdfFields {
   form_type: string;
+  form_description?: string | null;
+  applicant_name?: string | null;
+  pesel_masked?: string | null;
   insurance_title: InsuranceTitle;
   insurance_periods: string[];
   amount_is_net_base: boolean;
   extracted_amounts: number[];
   employer_insured_count?: number | null;
   children_count: number;
+  filled_form_fields_count: number;
+  key_extracted_fields: Record<string, string>;
   ocr_required: boolean;
 }
 

@@ -174,11 +174,41 @@ export default function SampleCasesPdfPage() {
                 </span>
               </div>
 
-              <div className="space-y-1 text-slate-700 dark:text-slate-300">
+              <div className="space-y-1.5 text-slate-700 dark:text-slate-300">
                 <p>
                   <strong>Rozpoznane formularze:</strong>{" "}
                   {pdfResult.detected_forms.length > 0 ? pdfResult.detected_forms.join(", ") : "Brak"}
                 </p>
+                {pdfResult.extracted_fields.form_description && (
+                  <p className="text-[11px] font-medium text-[#005a27] dark:text-emerald-300">
+                    {pdfResult.extracted_fields.form_description}
+                  </p>
+                )}
+                {pdfResult.extracted_fields.filled_form_fields_count > 0 && (
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Odczytano <strong>{pdfResult.extracted_fields.filled_form_fields_count}</strong>{" "}
+                    wypełnionych pól formularza PDF (AcroForm/XFA).
+                  </p>
+                )}
+                {Object.keys(pdfResult.extracted_fields.key_extracted_fields || {}).length > 0 && (
+                  <div className="mt-2 rounded-lg border border-slate-200 bg-white p-2.5 dark:border-slate-700 dark:bg-[#111c17]">
+                    <p className="mb-1 text-[11px] font-bold text-slate-800 dark:text-slate-200">
+                      Kluczowe dane odczytane z dokumentu:
+                    </p>
+                    <dl className="grid gap-1 text-[11px]">
+                      {Object.entries(pdfResult.extracted_fields.key_extracted_fields).map(
+                        ([k, v]) => (
+                          <div key={k} className="flex justify-between gap-2 border-b border-slate-100 py-0.5 last:border-0 dark:border-slate-800">
+                            <dt className="text-slate-500 dark:text-slate-400">{k}</dt>
+                            <dd className="text-right font-semibold text-slate-900 dark:text-slate-100">
+                              {v}
+                            </dd>
+                          </div>
+                        )
+                      )}
+                    </dl>
+                  </div>
+                )}
                 {pdfResult.extracted_fields.insurance_periods.length > 0 && (
                   <p>
                     <strong>Wykryte daty:</strong>{" "}

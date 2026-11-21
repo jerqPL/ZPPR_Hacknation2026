@@ -73,12 +73,17 @@ class SampleCase(BaseModel):
 
 class ExtractedPdfFields(BaseModel):
     form_type: str = "UNKNOWN"
+    form_description: Optional[str] = None
+    applicant_name: Optional[str] = None
+    pesel_masked: Optional[str] = None
     insurance_title: str = "uop"
     insurance_periods: list[str] = Field(default_factory=list)
     amount_is_net_base: bool = False
     extracted_amounts: list[float] = Field(default_factory=list)
     employer_insured_count: Optional[int] = None
     children_count: int = 1
+    filled_form_fields_count: int = 0
+    key_extracted_fields: dict[str, str] = Field(default_factory=dict)
     ocr_required: bool = False
 
 

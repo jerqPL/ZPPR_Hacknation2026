@@ -170,12 +170,28 @@ def test_pdf_parser_word_boundaries_and_needs_review():
     assert res_scan.insurance_verified is False
     assert res_scan.extracted_fields.ocr_required is True
 
-    # Verify word-boundary pattern doesn't match "zamówienie" as ZAM
+    # ERU filename fallback recognizes ERU form cleanly
+    res_eru = analyze_pdf_bytes("ERU_do wydruku.pdf", b"not-a-pdf")
+    assert "ERU" in res_eru.detected_forms
+    assert res_eru.extracted_fields.form_type == "ERU"
+    assert res_eru.suggested_insurance_title == "none"
+
+    # Verify word-boundary pattern doesn't match "zamówienie" as ZAM, while matching real ZUS codes
     from app.services.pdf_parser_service import _FORM_PATTERNS
 
     sample = "Dokument zamówienia ubezpieczenia społecznego"
     matched = [code for code, pat in _FORM_PATTERNS if pat.search(sample)]
     assert "ZAM" not in matched
+
+    for code_text, expected in [
+        ("Formularz ZUS ZAM wniosek o zasiłek", "ZAM"),
+        ("Zaświadczenie Z-3a dla zleceniobiorcy", "Z-3A"),
+        ("Oświadczenie ERU Mama 4+", "ERU"),
+        ("Wniosek ZNP-7 o świadczenie rehabilitacyjne", "ZNP-7"),
+        ("Wniosek Z-15A zasiłek opiekuńczy", "Z-15A"),
+    ]:
+        hits = [c for c, pat in _FORM_PATTERNS if pat.search(code_text)]
+        assert expected in hits, f"Expected {expected} in {hits}"
 
 
 def test_admin_auth_and_reset():
