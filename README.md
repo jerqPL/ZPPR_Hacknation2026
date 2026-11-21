@@ -6,7 +6,7 @@ Szkielet aplikacji webowej (RWD) przygotowany zgodnie z wymaganiami wyzwania **Z
 
 - **Frontend (`frontend/`)**: Next.js 15 (App Router) + React 19 + TypeScript + Tailwind CSS (Responsive Web Design).
 - **Backend (`backend/`)**: Python 3.12 + FastAPI + Pydantic v2 + `pypdf`, komunikacja przez **REST API** (`/api/v1/...`, dokumentacja OpenAPI/Swagger pod `/docs`).
-- **Konteneryzacja**: `docker-compose.yml` uruchamiający jednocześnie warstwę prezentacji i REST API.
+- **Uruchamianie**: wyłącznie przez **Docker Compose** ([docker-compose.yml](docker-compose.yml)).
 
 ## Pokrycie wymagań konkursowych
 
@@ -21,39 +21,28 @@ Szkielet aplikacji webowej (RWD) przygotowany zgodnie z wymaganiami wyzwania **Z
 | i) Szczególne sytuacje, podmioty wyłącznie charytatywne, oficjalne linki (ZUS, MRPiPS, PIP, USC) | `/wsparcie` | `GET /api/v1/guidance/support-organizations`, `GET /api/v1/guidance/official-links` |
 | Panel administracyjny (edycja parametrów prawnych przy zmianach legislacyjnych) | `/admin` | `GET/PUT /api/v1/admin/parameters`, `POST /api/v1/admin/parameters/reset` |
 
-## Uruchomienie lokalne
+## Uruchomienie (Docker)
 
-### 1. Backend (FastAPI)
-
-```bash
-cd backend
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload --port 8000
-```
-
-Testy jednostkowe / API:
-
-```bash
-cd backend
-.venv/bin/pytest -v
-```
-
-### 2. Frontend (Next.js)
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-Aplikacja dostępna pod `http://localhost:3000`, dokumentacja REST API pod `http://localhost:8000/docs`.
-
-### 3. Docker Compose
+Wymagany jest wyłącznie **Docker Desktop** (z Docker Compose).
 
 ```bash
 docker compose up --build
+```
+
+Po uruchomieniu:
+- **Aplikacja webowa**: `http://localhost:3000`
+- **REST API (Swagger)**: `http://localhost:8000/docs`
+
+### Zatrzymanie aplikacji
+
+```bash
+docker compose down
+```
+
+### Uruchomienie testów w kontenerze
+
+```bash
+docker compose run --rm backend pytest -v
 ```
 
 ## Zakres wykorzystania AI
