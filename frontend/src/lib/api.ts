@@ -1,5 +1,6 @@
 import type {
   ApplicationSubmissionResponse,
+  CaseDocumentsAnalysisResult,
   DebtStatusResponse,
   DocumentGuidanceResponse,
   EzlaCertificate,
@@ -100,7 +101,21 @@ export const api = {
       body: form,
     });
     if (!res.ok) {
-      throw new Error(`Błąd przesyłania PDF (${res.status})`);
+      throw new Error(`Błąd przesyłania dokumentu (${res.status})`);
+    }
+    return res.json();
+  },
+  analyzeCase: async (files: File[]): Promise<CaseDocumentsAnalysisResult> => {
+    const form = new FormData();
+    for (const file of files) {
+      form.append("files", file);
+    }
+    const res = await fetch(`${API_BASE}/documents/analyze-case`, {
+      method: "POST",
+      body: form,
+    });
+    if (!res.ok) {
+      throw new Error(`Błąd przesyłania zestawu dokumentów (${res.status})`);
     }
     return res.json();
   },

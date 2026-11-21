@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Download, ExternalLink, FileText, Printer } from "lucide-react";
+import { CheckCircle2, Download, ExternalLink, FileText, Printer, Send } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { useUser } from "@/components/UserContext";
 import { api } from "@/lib/api";
@@ -72,6 +72,11 @@ export default function DocumentsPage() {
   const [notes, setNotes] = useState("");
 
   const [submission, setSubmission] = useState<ApplicationSubmissionResponse | null>(null);
+  const [simulatedSent, setSimulatedSent] = useState<{
+    channel: string;
+    upoNumber: string;
+    sentAt: string;
+  } | null>(null);
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
   const pdfFrameRef = useRef<HTMLIFrameElement | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -160,6 +165,7 @@ export default function DocumentsPage() {
     e.preventDefault();
     setSubmitting(true);
     setError(null);
+    setSimulatedSent(null);
     try {
       const res = await api.submitApplication(buildPayload());
       setSubmission(res);
@@ -175,6 +181,21 @@ export default function DocumentsPage() {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleSimulateElectronicSend = () => {
+    if (!submission) return;
+    const channel =
+      appType === "zam_zus"
+        ? "PUE/eZUS (elektroniczna skrzynka ZUS — symulacja)"
+        : appType === "usc_birth_certificate"
+        ? "gov.pl / e-Doręczenia — Urząd Stanu Cywilnego (symulacja)"
+        : `Dział Kadr — ${recipientName} (symulacja)`;
+    setSimulatedSent({
+      channel,
+      upoNumber: `UPO-${submission.reference_number}`,
+      sentAt: new Date().toLocaleString("pl-PL"),
+    });
   };
 
   const handlePrintPdf = () => {
@@ -642,7 +663,15 @@ export default function DocumentsPage() {
                     Nr roboczy: {submission.reference_number}
                   </p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={handleSimulateElectronicSend}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-[#007834]/40 bg-[#e6f4ec] px-3 py-1.5 text-xs font-semibold text-[#005a27] hover:bg-[#d5ecdf] dark:border-emerald-700/50 dark:bg-[#007834]/25 dark:text-emerald-300 dark:hover:bg-[#007834]/40"
+                  >
+                    <Send className="h-3.5 w-3.5" />
+                    Zasymuluj wysłanie
+                  </button>
                   <button
                     type="button"
                     onClick={handlePrintPdf}
@@ -661,6 +690,21 @@ export default function DocumentsPage() {
                   </button>
                 </div>
               </div>
+
+              {simulatedSent && (
+                <div className="mt-3 flex items-start gap-2.5 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-900 dark:border-emerald-800/60 dark:bg-emerald-950/40 dark:text-emerald-200">
+                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[#007834] dark:text-emerald-400" />
+                  <div>
+                    <p className="font-bold">
+                      Wniosek przesłany pomyślnie (symulacja) — {simulatedSent.upoNumber}
+                    </p>
+                    <p className="mt-0.5">
+                      Kanał: <strong>{simulatedSent.channel}</strong> • Czas nadania:{" "}
+                      {simulatedSent.sentAt}
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {pdfPreviewUrl ? (
                 <div className="mt-4 overflow-hidden rounded-xl border border-slate-300 bg-white shadow-inner">

@@ -369,7 +369,8 @@ def test_pdf_parser_zam_roundtrip_and_acroform_and_xfa_variants():
     ).content
     rt = analyze_pdf_bytes("ZUS-ZAM.pdf", zam_pdf)
     assert rt.extracted_fields.form_type == "ZAM"
-    assert rt.suggested_insurance_title == "uop"
+    assert rt.suggested_insurance_title is None
+    assert rt.extracted_fields.has_za_zyciem is None
     assert rt.extracted_fields.applicant_name == "Żaneta Źdźbło-Ćwiklińska"
     assert rt.extracted_fields.pesel_masked == "920514*****"
 

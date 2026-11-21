@@ -159,10 +159,11 @@ def get_support_organizations() -> list[SupportOrganization]:
             charitable_only=True,
         ),
         SupportOrganization(
-            name="Fundacja Poronienie / Stowarzyszenie Rodziców po Poronieniu",
+            name="Fundacja Nagle Sami (OPP, KRS 0000398530)",
             category="strata_dziecka",
-            description="Grupy wsparcia oraz rzetelne przewodniki dotyczące praw rodziców po stracie dziecka (w tym 8 tyg. urlopu macierzyńskiego).",
-            website="https://poronilam.pl",
+            description="Bezpłatne wsparcie psychologiczne i grupy wsparcia dla rodziców i rodzin w żałobie (w tym po poronieniu i stracie dziecka) oraz bezpłatny Telefon Wsparcia 800 108 108.",
+            website="https://naglesami.org.pl",
+            helpline="800 108 108",
             charitable_only=True,
         ),
         SupportOrganization(

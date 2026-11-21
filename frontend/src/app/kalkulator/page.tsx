@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { PageHeader } from "@/components/PageHeader";
 import { InfoTooltip } from "@/components/InfoTooltip";
+import { PregnancyCalculatorPanel } from "@/components/PregnancyCalculatorPanel";
 import { useUser } from "@/components/UserContext";
 import { api } from "@/lib/api";
 import type {
@@ -43,6 +44,11 @@ function parsePolishSalaryList(input: string): number[] {
 export default function IntegratedCalculatorPage() {
   const { user } = useUser();
 
+  const [calculatorMode, setCalculatorMode] = useState<"maternity" | "pregnancy">("maternity");
+  const [pdfPrefillBanner, setPdfPrefillBanner] = useState<{
+    sourceLabel: string;
+    missingFields: string[];
+  } | null>(null);
   const [legalParams, setLegalParams] = useState<LegalParameters | null>(null);
   const prefillAppliedRef = useRef(false);
   const prevUserIdRef = useRef<string | null>(user?.id ?? null);
@@ -199,18 +205,60 @@ export default function IntegratedCalculatorPage() {
     prefillAppliedRef.current = true;
     try {
       const data = JSON.parse(raw) as Record<string, unknown>;
-      const sc = (data.scenario as BenefitScenario) || "birth";
-      const insTitle = (data.insurance_title as InsuranceTitle) || "uop";
+      const isFromPdf = Boolean(data.fromPdf);
+      const missing: string[] = [];
+
+      const rawScenario = data.scenario as BenefitScenario | null | undefined;
+      if (isFromPdf && !rawScenario) missing.push("Scenariusz (poród / adopcja / rodzina zastępcza)");
+      const sc: BenefitScenario = rawScenario || "birth";
+
+      const rawTitle = data.insurance_title as InsuranceTitle | null | undefined;
+      if (isFromPdf && !rawTitle) missing.push("Tytuł ubezpieczenia");
+      const insTitle: InsuranceTitle = rawTitle || "uop";
+
+      if (
+        isFromPdf &&
+        (data.has_sickness_insurance_on_birth_date === null ||
+          data.has_sickness_insurance_on_birth_date === undefined)
+      ) {
+        missing.push("Status ubezpieczenia chorobowego");
+      }
       const insured = Boolean(data.has_sickness_insurance_on_birth_date ?? true);
+
+      if (isFromPdf && (data.children_count === null || data.children_count === undefined)) {
+        missing.push("Liczba dzieci");
+      }
       const kids = Math.min(15, Math.max(1, Number(data.children_count ?? 1)));
-      const gross = Number(data.gross_monthly_salary ?? 7000);
+
       const custom1 = data.custom_benefit_base ? Number(data.custom_benefit_base) : null;
       const custom2 = data.second_parent_custom_base ? Number(data.second_parent_custom_base) : null;
       const secondGross = data.second_parent_gross_salary
         ? Number(data.second_parent_gross_salary)
         : null;
+
+      const hasGross =
+        data.gross_monthly_salary !== null &&
+        data.gross_monthly_salary !== undefined &&
+        data.gross_monthly_salary !== "";
+      if (isFromPdf && !hasGross && !custom1 && insTitle !== "none") {
+        missing.push("Wynagrodzenie brutto / podstawa wymiaru (zł)");
+      }
+      const gross = hasGross ? Number(data.gross_monthly_salary) : isFromPdf ? 0 : 7000;
+
+      if (isFromPdf && !data.payment_variant) {
+        missing.push("Wariant wypłaty (81,5% lub 100%/70%)");
+      }
       const variant = (data.payment_variant as PaymentVariant) || "81_5";
-      const empCount = Number(data.employer_insured_count ?? 25);
+
+      const hasEmpCount =
+        data.employer_insured_count !== null &&
+        data.employer_insured_count !== undefined &&
+        data.employer_insured_count !== "";
+      if (isFromPdf && !hasEmpCount && (insTitle === "uop" || insTitle === "zlecenie")) {
+        missing.push("Liczba ubezpieczonych u płatnika");
+      }
+      const empCount = hasEmpCount ? Number(data.employer_insured_count) : isFromPdf ? 0 : 25;
+
       const defaultMat = MATERNITY_WEEKS_BY_CHILDREN[Math.min(kids, 5)] || 20;
       const matWeeks =
         data.mother_maternity_weeks !== undefined && data.mother_maternity_weeks !== null
@@ -238,6 +286,11 @@ export default function IntegratedCalculatorPage() {
       setFosterFamilyType((data.foster_family_type as FosterFamilyType) || "non_professional");
       setFosterDeferred(Boolean(data.foster_deferred_school));
       setHasZaZyciem(Boolean(data.has_za_zyciem_certificate));
+      setStillbirthOrEarlyDeath(Boolean(data.stillbirth_or_early_death));
+      setPremature(Boolean(data.premature_or_hospitalized));
+      if (data.gestation_week) setGestationWeek(Number(data.gestation_week));
+      if (data.birth_weight_grams) setBirthWeight(Number(data.birth_weight_grams));
+      setCombineWork(Boolean(data.combine_parental_with_work));
       setGrossSalary(gross);
       if (custom1) {
         setBaseMode("custom");
@@ -250,40 +303,51 @@ export default function IntegratedCalculatorPage() {
       setCustomBase2(custom2 ? String(custom2) : "");
       setPaymentVariant(variant);
       setEmployerCount(empCount);
-      setContributionDebt(0);
+      setContributionDebt(Number(data.contribution_debt_pln ?? 0));
       setMotherMaternityWeeks(matWeeks);
       setMotherParentalWeeks("");
       setFatherParentalWeeks(fatherPar);
       setFatherPaternity(fatherPat);
-      setPremature(false);
       setFullTermHospConditionMet(true);
-      setCombineWork(false);
       setFatherCombineWork(false);
 
-      setLoading(true);
-      api
-        .calculateIntegrated({
-          scenario: sc,
-          insurance_title: insTitle,
-          has_sickness_insurance_on_birth_date: insured,
-          children_count: kids,
-          child_age_years: sc === "birth" ? null : Number(data.child_age_years ?? 3),
-          foster_family_type: (data.foster_family_type as FosterFamilyType) || "non_professional",
-          foster_deferred_school: Boolean(data.foster_deferred_school),
-          has_za_zyciem_certificate: Boolean(data.has_za_zyciem_certificate),
-          gross_monthly_salary: gross,
-          custom_benefit_base: custom1,
-          second_parent_gross_salary: secondGross,
-          second_parent_custom_base: custom2,
-          payment_variant: variant,
-          mother_maternity_weeks: matWeeks,
-          father_takes_parental_weeks: fatherPar,
-          father_takes_paternity_leave: fatherPat,
-          employer_insured_count: empCount,
-        })
-        .then(setResult)
-        .catch((err) => setError(err instanceof Error ? err.message : "Błąd wyliczeń API"))
-        .finally(() => setLoading(false));
+      if (isFromPdf) {
+        setPdfPrefillBanner({
+          sourceLabel: String(data.sourceLabel || "Wczytany dokument PDF"),
+          missingFields: missing,
+        });
+      }
+
+      // Uruchom automatyczne wyliczenie tylko gdy zestaw danych jest kompletny (przykłady demo lub pełny PDF)
+      if (!isFromPdf || missing.length === 0) {
+        setLoading(true);
+        api
+          .calculateIntegrated({
+            scenario: sc,
+            insurance_title: insTitle,
+            has_sickness_insurance_on_birth_date: insured,
+            children_count: kids,
+            child_age_years: sc === "birth" ? null : Number(data.child_age_years ?? 3),
+            foster_family_type: (data.foster_family_type as FosterFamilyType) || "non_professional",
+            foster_deferred_school: Boolean(data.foster_deferred_school),
+            has_za_zyciem_certificate: Boolean(data.has_za_zyciem_certificate),
+            stillbirth_or_early_death: Boolean(data.stillbirth_or_early_death),
+            premature_or_hospitalized: Boolean(data.premature_or_hospitalized),
+            gross_monthly_salary: gross,
+            custom_benefit_base: custom1,
+            second_parent_gross_salary: secondGross,
+            second_parent_custom_base: custom2,
+            payment_variant: variant,
+            mother_maternity_weeks: matWeeks,
+            father_takes_parental_weeks: fatherPar,
+            father_takes_paternity_leave: fatherPat,
+            employer_insured_count: empCount,
+            contribution_debt_pln: Number(data.contribution_debt_pln ?? 0),
+          })
+          .then(setResult)
+          .catch((err) => setError(err instanceof Error ? err.message : "Błąd wyliczeń API"))
+          .finally(() => setLoading(false));
+      }
     } catch {
       // ignore invalid prefill JSON
     }
@@ -582,9 +646,56 @@ export default function IntegratedCalculatorPage() {
     <div>
       <PageHeader
         badge="Zintegrowany Kalkulator"
-        title="Zintegrowany Kalkulator Zasiłku Macierzyńskiego i Rodzicielskiego"
-        description="Jedno narzędzie łączące wszystkie warianty: poród, podział opieki między oboje rodziców, łączenie urlopu rodzicielskiego z pracą, adopcję i rodzinę zastępczą (niezawodową i zawodową), indywidualną podstawę wymiaru zasiłku oraz symulację spraw z zestawów ZUS. Najedź kursorem na dowolną nazwę rubryki, aby zobaczyć podpowiedź."
+        title="Zintegrowany Kalkulator Świadczeń w Ciąży i po Narodzinach Dziecka"
+        description="Jedno narzędzie łączące wszystkie kalkulatory: okres ciąży (chorobowy kod B, rehabilitacyjny, art. 30), poród, podział opieki między oboje rodziców, łączenie urlopu rodzicielskiego z pracą, adopcję, rodzinę zastępczą oraz indywidualną podstawę wymiaru zasiłku."
       />
+
+      {/* Przełącznik modułów zintegrowanego kalkulatora (pkt a–f, j) */}
+      <div className="mb-6 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => setCalculatorMode("maternity")}
+          className={`rounded-xl border px-4 py-2.5 text-xs font-bold transition ${
+            calculatorMode === "maternity"
+              ? "border-[#007834] bg-[#007834] text-white shadow-xs"
+              : "border-slate-200 bg-white text-slate-700 hover:border-[#007834]/50 dark:border-emerald-950 dark:bg-[#111c17] dark:text-slate-300"
+          }`}
+        >
+          Macierzyński, rodzicielski, ojcowski, adopcja i rodzina zastępcza
+        </button>
+        <button
+          type="button"
+          onClick={() => setCalculatorMode("pregnancy")}
+          className={`rounded-xl border px-4 py-2.5 text-xs font-bold transition ${
+            calculatorMode === "pregnancy"
+              ? "border-[#007834] bg-[#007834] text-white shadow-xs"
+              : "border-slate-200 bg-white text-slate-700 hover:border-[#007834]/50 dark:border-emerald-950 dark:bg-[#111c17] dark:text-slate-300"
+          }`}
+        >
+          Świadczenia w czasie ciąży (chorobowy, rehabilitacyjny, art. 30)
+        </button>
+      </div>
+
+      {calculatorMode === "pregnancy" ? (
+        <PregnancyCalculatorPanel />
+      ) : (
+        <>
+          {pdfPrefillBanner && (
+            <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-950 dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-200">
+              <p className="font-bold">Wczytano dane z dokumentu: {pdfPrefillBanner.sourceLabel}</p>
+              {pdfPrefillBanner.missingFields.length > 0 ? (
+                <p className="mt-1">
+                  Następujących pól nie udało się odczytać z dokumentu — sprawdź i uzupełnij je
+                  poniżej przed kliknięciem „Oblicz”:{" "}
+                  <strong>{pdfPrefillBanner.missingFields.join(", ")}</strong>.
+                </p>
+              ) : (
+                <p className="mt-1">
+                  Wszystkie wymagane pola zostały odczytane i wstępnie przeliczone.
+                </p>
+              )}
+            </div>
+          )}
 
       {/* Pasek wyboru konkretnej sprawy z zestawów ZUS (pkt f) */}
       <div className="mb-6 rounded-xl border border-[#007834]/30 bg-[#e6f4ec]/60 p-4 shadow-xs dark:border-emerald-800/60 dark:bg-[#007834]/15">
@@ -2013,6 +2124,8 @@ export default function IntegratedCalculatorPage() {
           )}
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 }

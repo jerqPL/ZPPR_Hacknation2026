@@ -4,16 +4,26 @@ import { useEffect, useState } from "react";
 import { ExternalLink } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { api } from "@/lib/api";
-import type { OfficialLink, SupportOrganization } from "@/lib/types";
+import type { LegalParameters, OfficialLink, SupportOrganization } from "@/lib/types";
 
 export default function SupportPage() {
   const [orgs, setOrgs] = useState<SupportOrganization[]>([]);
   const [links, setLinks] = useState<OfficialLink[]>([]);
+  const [params, setParams] = useState<LegalParameters | null>(null);
 
   useEffect(() => {
     api.getSupportOrganizations().then(setOrgs).catch(() => setOrgs([]));
     api.getOfficialLinks().then(setLinks).catch(() => setLinks([]));
+    api.getParameters().then(setParams).catch(() => setParams(null));
   }, []);
+
+  const stillbirthWeeks = params?.stillbirth_maternity_weeks ?? 8;
+  const childDeathMinDays = params?.child_death_min_days ?? 7;
+  const funeralGrantStr = (params?.funeral_grant_pln ?? 7000).toLocaleString("pl-PL");
+  const suppStdWeeks = params?.supplementary_maternity_max_weeks_standard ?? 8;
+  const suppExtWeeks = params?.supplementary_maternity_max_weeks_extreme ?? 15;
+  const suppRatePct = Math.round((params?.supplementary_maternity_rate ?? 1.0) * 100);
+  const minMotherWeeks = params?.maternity_min_mother_weeks ?? 14;
 
   return (
     <div>
@@ -29,8 +39,8 @@ export default function SupportPage() {
           <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Urodzenie martwego dziecka</h2>
           <p className="mt-2 text-xs leading-relaxed text-slate-600 dark:text-slate-400">
             Przysługuje zasiłek macierzyński za okres urlopu macierzyńskiego w wymiarze{" "}
-            <strong>8 tygodni</strong> po porodzie (nie krócej niż 7 dni od dnia zgonu) oraz{" "}
-            <strong>zasiłek pogrzebowy 7 000 zł</strong> (wniosek Z-12). Podstawą jest akt urodzenia
+            <strong>{stillbirthWeeks} tygodni</strong> po porodzie (nie krócej niż {childDeathMinDays} dni od dnia zgonu) oraz{" "}
+            <strong>zasiłek pogrzebowy {funeralGrantStr} zł</strong> (wniosek Z-12). Podstawą jest akt urodzenia
             z adnotacją o martwym urodzeniu albo — gdy aktu nie sporządzono — zaświadczenie lekarza
             ginekologa lub położnej (§ 13 ust. 1 pkt 2 rozporządzenia z 27.09.2026 r.).
           </p>
@@ -38,9 +48,9 @@ export default function SupportPage() {
         <div className="rounded-xl border border-slate-200 dark:border-emerald-950 bg-white dark:bg-[#111c17] p-5 shadow-xs">
           <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Wcześniak / hospitalizacja</h2>
           <p className="mt-2 text-xs leading-relaxed text-slate-600 dark:text-slate-400">
-            Rodzicom przysługuje <strong>uzupełniający urlop macierzyński</strong> (do 8 lub 15
-            tygodni w zależności od tygodnia ciąży, masy urodzeniowej i czasu hospitalizacji) płatny
-            w 100% podstawy wymiaru.
+            Rodzicom przysługuje <strong>uzupełniający urlop macierzyński</strong> (do {suppStdWeeks} lub{" "}
+            {suppExtWeeks} tygodni w zależności od tygodnia ciąży, masy urodzeniowej i czasu hospitalizacji) płatny
+            w {suppRatePct}% podstawy wymiaru.
           </p>
         </div>
         <div className="rounded-xl border border-slate-200 dark:border-emerald-950 bg-white dark:bg-[#111c17] p-5 shadow-xs">
@@ -48,7 +58,7 @@ export default function SupportPage() {
             Ciężka choroba lub śmierć matki dziecka
           </h2>
           <p className="mt-2 text-xs leading-relaxed text-slate-600 dark:text-slate-400">
-            Ojciec dziecka może przejąć urlop macierzyński wcześniej niż po 14 tygodniach w razie
+            Ojciec dziecka może przejąć urlop macierzyński wcześniej niż po {minMotherWeeks} tygodniach w razie
             hospitalizacji matki, orzeczenia o niezdolności do samodzielnej egzystencji lub jej
             śmierci.
           </p>
@@ -72,6 +82,11 @@ export default function SupportPage() {
                 </span>
                 <h3 className="mt-2 text-sm font-bold text-slate-900 dark:text-slate-100">{org.name}</h3>
                 <p className="mt-1.5 text-xs leading-relaxed text-slate-600 dark:text-slate-400">{org.description}</p>
+                {org.helpline && (
+                  <p className="mt-2 text-xs font-semibold text-[#005a27] dark:text-emerald-300">
+                    Bezpłatna infolinia: {org.helpline}
+                  </p>
+                )}
               </div>
               <a
                 href={org.website}

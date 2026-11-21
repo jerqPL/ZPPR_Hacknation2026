@@ -187,34 +187,104 @@ export interface SampleCase {
   notes: string;
 }
 
+export type DocumentDomain =
+  | "sickness_pregnancy"
+  | "sickness_general"
+  | "maternity_parental"
+  | "payer_or_insurance_certificate"
+  | "care_benefit"
+  | "other_benefit"
+  | "unknown";
+
+export type RecommendedCalculator =
+  | "pregnancy_sickness"
+  | "maternity_parental"
+  | "both"
+  | "info_only";
+
+export type SicknessInsuranceStatus = "confirmed" | "denied" | "unknown";
+
+export interface DocumentConflict {
+  field: string;
+  field_label: string;
+  values: string[];
+  documents: string[];
+  message: string;
+}
+
 export interface ExtractedPdfFields {
   form_type: string;
   form_description?: string | null;
+  document_domain: DocumentDomain;
+  recommended_calculator: RecommendedCalculator;
   applicant_name?: string | null;
   pesel_masked?: string | null;
-  insurance_title: InsuranceTitle;
+  insurance_title?: InsuranceTitle | null;
+  zus_title_code?: string | null;
+  sickness_insurance_status: SicknessInsuranceStatus;
+  insurance_days?: number | null;
   insurance_periods: string[];
   amount_is_net_base: boolean;
   extracted_amounts: number[];
+  fte_fraction?: number | null;
   employer_insured_count?: number | null;
-  children_count: number;
+  has_contribution_debt?: boolean | null;
+  contribution_debt_pln?: number | null;
+  ezla_number?: string | null;
+  incapacity_period?: string | null;
+  incapacity_days?: number | null;
+  letter_codes: string[];
+  has_code_b?: boolean | null;
+  pregnancy_confirmed?: boolean | null;
+  employment_terminated_special?: boolean | null;
+  termination_reason?: string | null;
+  waiting_period_exemption_reason?: string | null;
+  scenario?: BenefitScenario | null;
+  children_count?: number | null;
+  child_birth_date?: string | null;
+  payment_variant?: PaymentVariant | null;
+  has_za_zyciem?: boolean | null;
+  stillbirth_or_early_death?: boolean | null;
+  premature_or_hospitalized?: boolean | null;
+  gestation_week?: number | null;
+  birth_weight_grams?: number | null;
+  hospitalization_weeks?: number | null;
+  combine_parental_with_work?: boolean | null;
+  work_fte_fraction?: number | null;
+  father_takes_paternity_leave?: boolean | null;
+  mother_uninsured_father_claim?: boolean | null;
+  page_count: number;
+  ocr_pages_processed: number;
   filled_form_fields_count: number;
   key_extracted_fields: Record<string, string>;
   ocr_required: boolean;
+  ocr_used: boolean;
 }
 
 export interface PdfAnalysisResult {
   filename: string;
+  file_kind: "pdf" | "image";
   detected_forms: string[];
+  document_domain: DocumentDomain;
+  recommended_calculator: RecommendedCalculator;
   extracted_text_preview: string;
   verification_status: "verified" | "denied" | "needs_review";
+  sickness_insurance_status: SicknessInsuranceStatus;
   confidence: "high" | "medium" | "low";
   insurance_verified: boolean;
-  suggested_insurance_title: InsuranceTitle;
+  suggested_insurance_title?: InsuranceTitle | null;
   suggested_gross_salary?: number | null;
   suggested_custom_benefit_base?: number | null;
   extracted_fields: ExtractedPdfFields;
+  missing_fields_for_calculation: string[];
+  guidance_banner?: string | null;
   notes: string[];
+}
+
+export interface CaseDocumentsAnalysisResult {
+  documents: PdfAnalysisResult[];
+  merged: PdfAnalysisResult;
+  conflicts: DocumentConflict[];
 }
 
 export interface ApplicationSubmissionResponse {
