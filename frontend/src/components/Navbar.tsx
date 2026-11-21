@@ -9,7 +9,6 @@ import { useTheme } from "./ThemeContext";
 
 const NAV_ITEMS = [
   { href: "/", label: "Start" },
-  { href: "/ciaza", label: "Ciąża" },
   { href: "/kalkulator", label: "Kalkulator" },
   { href: "/sprawy-pdf", label: "Sprawy PDF" },
   { href: "/dokumenty", label: "Dokumenty" },

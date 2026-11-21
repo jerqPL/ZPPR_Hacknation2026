@@ -1,17 +1,18 @@
 "use client";
 
-import { PageHeader } from "@/components/PageHeader";
-import { PregnancyCalculatorPanel } from "@/components/PregnancyCalculatorPanel";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 
-export default function PregnancyPage() {
+export default function LegacyPregnancyRedirectPage() {
+  const router = useRouter();
+
+  useEffect(() => {
+    router.replace("/kalkulator?mode=pregnancy");
+  }, [router]);
+
   return (
-    <div>
-      <PageHeader
-        badge="Okres ciąży"
-        title="Świadczenia w czasie ciąży"
-        description="Sprawdź uprawnienia do zasiłku chorobowego (kod literowy B = 100% do 270 dni), świadczenia rehabilitacyjnego (100% do 12 miesięcy) oraz świadczeń po ustaniu zatrudnienia w ciąży (art. 7, art. 30 i art. 46 ustawy zasiłkowej)."
-      />
-      <PregnancyCalculatorPanel />
+    <div className="py-16 text-center text-sm text-slate-500 dark:text-slate-400">
+      Przekierowywanie do zintegrowanego kalkulatora (zakładka Ciąża)...
     </div>
   );
 }

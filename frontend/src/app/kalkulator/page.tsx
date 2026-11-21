@@ -197,6 +197,17 @@ export default function IntegratedCalculatorPage() {
       .catch(() => setLegalParams(null));
   }, []);
 
+  // Automatyczne przełączenie na tryb ciąży/chorobowego z parametru URL lub prefillu PDF
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (
+      params.get("mode") === "pregnancy" ||
+      sessionStorage.getItem("zppr-prefill-pregnancy")
+    ) {
+      setCalculatorMode("pregnancy");
+    }
+  }, []);
+
   // Automatyczne wczytanie danych przekazanych ze strony /sprawy-pdf
   useEffect(() => {
     const raw = sessionStorage.getItem("zppr-prefill-calculator");

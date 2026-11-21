@@ -81,7 +81,7 @@ export default function SampleCasesPdfPage() {
 
   const openInPregnancyCalculator = (prefill: Record<string, unknown>) => {
     sessionStorage.setItem(PREGNANCY_PREFILL_STORAGE_KEY, JSON.stringify(prefill));
-    router.push("/ciaza");
+    router.push("/kalkulator?mode=pregnancy");
   };
 
   const runSampleCase = (c: SampleCase) => {

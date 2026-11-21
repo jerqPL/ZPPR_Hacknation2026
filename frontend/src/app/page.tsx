@@ -1,6 +1,5 @@
 import Link from "next/link";
 import {
-  Baby,
   Calculator,
   FileCheck2,
   FileSearch,
@@ -21,18 +20,11 @@ const MODULES = [
     tag: "e-Usługi",
   },
   {
-    href: "/ciaza",
-    title: "Świadczenia w czasie ciąży",
-    desc: "Oblicz zasiłek chorobowy z kodem B (100% do 270 dni), świadczenie rehabilitacyjne oraz zasiłek w wysokości zasiłku macierzyńskiego.",
-    icon: Baby,
-    tag: "Okres ciąży",
-  },
-  {
     href: "/kalkulator",
     title: "Zintegrowany Kalkulator Zasiłkowy",
-    desc: "Urlop macierzyński, uzupełniający (wcześniak), rodzicielski (w tym „Za życiem”), ojcowski, podział opieki, łączenie z pracą i adopcja.",
+    desc: "Wszystkie kalkulatory w jednym miejscu: ciąża (chorobowy kod B, rehabilitacyjny, art. 30), macierzyński, uzupełniający, rodzicielski („Za życiem”), ojcowski, podział opieki, łączenie z pracą, adopcja i rodzina zastępcza.",
     icon: Calculator,
-    tag: "Kalkulator",
+    tag: "Ciąża i Rodzicielstwo",
   },
   {
     href: "/sprawy-pdf",
