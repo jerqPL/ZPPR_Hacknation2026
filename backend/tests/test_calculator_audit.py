@@ -442,8 +442,8 @@ def test_integrated_pre_birth_maternity_enforces_14_weeks_after_birth():
 
 
 def test_integrated_adoption_age_cap_and_foster_deduction_art183():
-    # Adopcja dziecka w wieku 13.3 lat (~36.5 tyg. -> 36 tyg. do 14. r.ż.):
-    # 20 tyg. na warunkach macierzyńskiego + maks. 16 tyg. rodzicielskiego (art. 183 § 4^1 KP)!
+    # Adopcja dziecka w wieku 13.3 lat (floor(0.7 * 52.1429) = 36 tyg. do 14. r.ż.):
+    # 20 tyg. na warunkach macierzyńskiego + 16 tyg. rodzicielskiego (7 tyg. Rodzic 1 + 9 tyg. Rodzic 2, art. 183 § 4^1 KP)!
     r_age = client.post(
         "/api/v1/calculator/integrated",
         json={
@@ -457,7 +457,7 @@ def test_integrated_adoption_age_cap_and_foster_deduction_art183():
     assert r_age.status_code == 200
     da = r_age.json()
     assert da["maternity_weeks"] == 20
-    assert da["parental_weeks_total"] == 16.0  # 36 - 20 = 16 tyg.
+    assert da["parental_weeks_total"] == 16.0  # 36 - 20 = 16 tyg. (7 tyg. Rodzic 1 + 9 tyg. Rodzic 2)
 
     # Adopcja po wcześniejszym wykorzystaniu 35 z 41 tyg. rodzicielskiego w rodzinie zastępczej (art. 183 § 8):
     # Pozostałe 6 tyg. NIE może zniknąć przez odejmowanie 9 tyg. od pozostałej puli!
@@ -618,3 +618,63 @@ def test_integrated_zlecenie_deregistration_warning_and_twins_stillbirth():
     assert r_tw["maternity_weeks"] == 20
     assert r_tw["parental_weeks_total"] == 41.0
     assert any("7 000" in w for w in r_tw["warnings"])
+
+
+def test_docs_verification_discovered_edge_cases():
+    # 1. Zaokrąglenie ROUND_HALF_UP limitu 250% dobrowolnego chorobowego: 23 550 * 0.8629 = 20 321,30 zł (Załącznik ZUS 2026)
+    r_cap = client.post(
+        "/api/v1/calculator/pregnancy",
+        json={"insurance_title": "jdg", "has_voluntary_sickness_insurance": True, "insurance_days": 365, "gross_monthly_salary": 30000.0},
+    ).json()
+    assert r_cap["benefit_base_monthly"] == 20321.30
+
+    # 2. Aktywne ubezpieczenie bez kodu B -> wstępnie 80% i 182 dni (art. 8 ust. 1 u.z.)
+    r_nob = client.post(
+        "/api/v1/calculator/pregnancy",
+        json={"insurance_title": "uop", "insurance_days": 120, "gross_monthly_salary": 6500.0, "has_code_b": False},
+    ).json()
+    assert r_nob["benefit_rate_percent"] == 80.0
+    assert r_nob["max_benefit_days"] == 182
+
+    # 3. Zwolnienie z okresu wyczekiwania (art. 4 ust. 3) -> waiting_period_required_days == 0 + płatnik 'zleceniodawca'
+    r_ex = client.post(
+        "/api/v1/calculator/pregnancy",
+        json={
+            "insurance_title": "zlecenie",
+            "has_voluntary_sickness_insurance": True,
+            "insurance_days": 3,
+            "waiting_period_exemption_reason": "commute_accident",
+            "gross_monthly_salary": 5000.0,
+            "employer_insured_count": 30,
+        },
+    ).json()
+    assert r_ex["waiting_period_required_days"] == 0
+    assert r_ex["waiting_period_met"] is True
+    assert "zleceniodawca" in r_ex["payer"].lower()
+
+    # 4. Adopcja w wieku 13.5 lat (pozostało 6 tyg. < 9 tyg. do 14. r.ż.) -> 6 tyg. rodzicielskiego nie przepada!
+    r_ad135 = client.post(
+        "/api/v1/calculator/integrated",
+        json={"scenario": "adoption", "insurance_title": "uop", "child_age_years": 13.5, "gross_monthly_salary": 7500.0, "father_takes_parental_weeks": 0},
+    ).json()
+    assert r_ad135["maternity_weeks"] == 20
+    assert r_ad135["parental_weeks_total"] == 6.0
+
+    # 5. Art. 31 ust. 3h (matka nieubezpieczona) z domyślnym father_takes_parental_weeks=0 + ojcowski -> ojciec dostaje 32 tyg. + 2 tyg. ojc.
+    r_3h = client.post(
+        "/api/v1/calculator/integrated",
+        json={
+            "scenario": "birth",
+            "insurance_title": "none",
+            "has_sickness_insurance_on_birth_date": False,
+            "second_parent_insured_claim": True,
+            "second_parent_insurance_title": "uop",
+            "second_parent_has_sickness_insurance": True,
+            "second_parent_gross_salary": 8000.0,
+            "father_takes_paternity_leave": True,
+        },
+    ).json()
+    assert r_3h["eligible"] is True
+    assert r_3h["parental_weeks_total"] == 32.0
+    assert r_3h["paternity_weeks"] == 2
+

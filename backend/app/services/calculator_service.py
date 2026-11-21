@@ -1,3 +1,4 @@
+from decimal import Decimal, ROUND_HALF_UP
 import math
 from fastapi import HTTPException
 from app.models.calculator import (
@@ -16,6 +17,11 @@ from app.models.calculator import (
     WaitingPeriodExemptionReason,
 )
 from app.models.parameters import LegalParameters
+
+
+def _round_pln(value: float) -> float:
+    """Zaokrąglenie kwot PLN do grosza metodą matematyczną (ROUND_HALF_UP, zgodnie z praktyką ZUS)."""
+    return float(Decimal(str(round(value, 8))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
 
 
 def calculate_individual_benefit_base(
@@ -38,13 +44,13 @@ def calculate_individual_benefit_base(
                 status_code=422,
                 detail="Podaj dodatnią podstawę wymiaru z poprzedniego zasiłku (art. 43 ustawy zasiłkowej).",
             )
-        base = round(req.previous_benefit_base, 2)
+        base = _round_pln(req.previous_benefit_base)
         legal_basis = "Art. 43 ustawy zasiłkowej (przerwa między zasiłkami krótsza niż miesiąc kalendarzowy)"
         steps.append(
             f"Zachowano podstawę wymiaru z poprzedniego zasiłku (np. chorobowego w ciąży): {base:.2f} zł (brak przerwy lub przerwa < 1 miesiąc kalendarzowy)."
         )
         if req.insurance_title == InsuranceTitle.UOP:
-            min_base = round(params.minimum_wage_gross * req.fte_fraction * (1.0 - rate), 2)
+            min_base = _round_pln(params.minimum_wage_gross * req.fte_fraction * (1.0 - rate))
             if base < min_base:
                 base = min_base
                 floor_applied = True
@@ -52,7 +58,7 @@ def calculate_individual_benefit_base(
                     f"Podniesiono zachowaną podstawę do gwarantowanego minimum dla {req.fte_fraction:.2f} etatu w {params.year} r.: {min_base:.2f} zł (art. 45 ustawy zasiłkowej)."
                 )
         elif req.insurance_title in (InsuranceTitle.ZLECENIE, InsuranceTitle.JDG):
-            max_cap_net = round(params.voluntary_sickness_max_monthly_gross * (1.0 - rate), 2)
+            max_cap_net = _round_pln(params.voluntary_sickness_max_monthly_gross * (1.0 - rate))
             if base > max_cap_net:
                 base = max_cap_net
                 cap_applied = True
@@ -61,7 +67,7 @@ def calculate_individual_benefit_base(
                 )
     elif req.mode == "jdg_art48a":
         max_cap_gross = params.voluntary_sickness_max_monthly_gross
-        max_cap_net = round(max_cap_gross * (1.0 - rate), 2)
+        max_cap_net = _round_pln(max_cap_gross * (1.0 - rate))
         declared_gross = req.jdg_declared_monthly_gross
         if declared_gross > max_cap_gross:
             declared_gross = max_cap_gross
@@ -77,8 +83,8 @@ def calculate_individual_benefit_base(
         else:
             min_gross = params.jdg_standard_min_base_gross
 
-        min_net = round(min_gross * (1.0 - rate), 2)
-        declared_net = round(declared_gross * (1.0 - rate), 2)
+        min_net = _round_pln(min_gross * (1.0 - rate))
+        declared_net = _round_pln(declared_gross * (1.0 - rate))
 
         if req.jdg_insured_months == 0:
             legal_basis = "Art. 49 ust. 1 pkt 1 ustawy zasiłkowej (powstanie prawa przed upływem 1 pełnego miesiąca kalendarzowego ubezpieczenia na JDG)"
@@ -93,8 +99,8 @@ def calculate_individual_benefit_base(
                 )
         elif req.jdg_insured_months < 12 and declared_net > min_net:
             legal_basis = "Art. 48a ust. 1 ustawy zasiłkowej (ubezpieczenie chorobowe na JDG krótsze niż 12 miesięcy)"
-            excess = round(((declared_net - min_net) / 12.0) * req.jdg_insured_months, 2)
-            base = round(min_net + excess, 2)
+            excess = _round_pln(((declared_net - min_net) / 12.0) * req.jdg_insured_months)
+            base = _round_pln(min_net + excess)
             steps.append(
                 f"Najniższa podstawa po odliczeniu {rate*100:.2f}%: {min_net:.2f} zł (z {min_gross:.2f} zł brutto{' — preferencyjny ZUS' if req.jdg_preferential_zus else ''})."
             )
@@ -219,10 +225,10 @@ def calculate_individual_benefit_base(
                     "Uwaga (art. 42 ust. 2–3): Przy zatrudnieniu krótszym niż 12 miesięcy składniki kwartalne/roczne dolicza się proporcjonalnie do pełnych miesięcy kalendarzowych zatrudnienia w danym okresie."
                 )
 
-        base = round(avg_net + quarterly_addition + annual_addition, 2)
+        base = _round_pln(avg_net + quarterly_addition + annual_addition)
 
         if req.insurance_title == InsuranceTitle.UOP:
-            min_base = round(params.minimum_wage_gross * req.fte_fraction * (1.0 - rate), 2)
+            min_base = _round_pln(params.minimum_wage_gross * req.fte_fraction * (1.0 - rate))
             if base < min_base:
                 base = min_base
                 floor_applied = True
@@ -230,7 +236,7 @@ def calculate_individual_benefit_base(
                     f"Podniesiono podstawę do gwarantowanego minimum dla {req.fte_fraction:.2f} etatu: {min_base:.2f} zł (art. 45 ustawy zasiłkowej)."
                 )
         elif req.insurance_title in (InsuranceTitle.ZLECENIE, InsuranceTitle.JDG):
-            max_cap_net = round(params.voluntary_sickness_max_monthly_gross * (1.0 - rate), 2)
+            max_cap_net = _round_pln(params.voluntary_sickness_max_monthly_gross * (1.0 - rate))
             if base > max_cap_net:
                 base = max_cap_net
                 cap_applied = True
@@ -240,9 +246,9 @@ def calculate_individual_benefit_base(
 
     return IndividualBaseCalculationResponse(
         computed_base_monthly=base,
-        daily_rate_100_percent=round(base / 30.0, 2),
-        daily_rate_81_5_percent=round((base * params.combined_21_days_rate) / 30.0, 2),
-        daily_rate_70_percent=round((base * params.parental_rate_standard) / 30.0, 2),
+        daily_rate_100_percent=_round_pln(base / 30.0),
+        daily_rate_81_5_percent=_round_pln((base * params.combined_21_days_rate) / 30.0),
+        daily_rate_70_percent=_round_pln((base * params.parental_rate_standard) / 30.0),
         cap_applied=cap_applied,
         floor_applied=floor_applied,
         legal_basis=legal_basis,
@@ -264,17 +270,17 @@ def _compute_benefit_base_with_explanation(
         return ind_res.computed_base_monthly, f"{ind_res.legal_basis}: " + " ".join(ind_res.explanation_steps)
 
     if custom_base is not None and custom_base > 0:
-        base = round(custom_base, 2)
+        base = _round_pln(custom_base)
         notes_custom: list[str] = []
         if insurance_title == InsuranceTitle.UOP:
-            min_base = round(params.minimum_wage_gross * fte_fraction * (1.0 - rate), 2)
+            min_base = _round_pln(params.minimum_wage_gross * fte_fraction * (1.0 - rate))
             if base < min_base:
                 base = min_base
                 notes_custom.append(
                     f"podwyższono do gwarantowanego minimum dla {fte_fraction:.2f} etatu w {params.year} r.: {min_base:.2f} zł (art. 45)"
                 )
         elif insurance_title in (InsuranceTitle.JDG, InsuranceTitle.ZLECENIE):
-            max_base = round(params.voluntary_sickness_max_monthly_gross * (1.0 - rate), 2)
+            max_base = _round_pln(params.voluntary_sickness_max_monthly_gross * (1.0 - rate))
             if base > max_base:
                 base = max_base
                 notes_custom.append(
@@ -302,10 +308,10 @@ def _compute_benefit_base_with_explanation(
         if base < min_base:
             base = min_base
             notes.append(
-                f"podwyższono do minimalnej podstawy wymiaru zasiłku dla {fte_fraction:.2f} etatu w {params.year} r. ({min_base:.2f} zł)"
+                f"podwyższono do minimalnej podstawy wymiaru zasiłku dla {fte_fraction:.2f} etatu w {params.year} r. ({_round_pln(min_base):.2f} zł)"
             )
 
-    base_rounded = round(base, 2)
+    base_rounded = _round_pln(base)
     extra = f" ({'; '.join(notes)})" if notes else ""
     explanation = (
         f"Przeciętny miesięczny przychód {gross_salary:.2f} zł brutto pomniejszony o {rate*100:.2f}% składek społecznych = {base_rounded:.2f} zł{extra}."
@@ -314,8 +320,10 @@ def _compute_benefit_base_with_explanation(
 
 
 def _determine_payer(insurance_title: InsuranceTitle, employer_insured_count: int, params: LegalParameters) -> str:
-    if insurance_title in (InsuranceTitle.UOP, InsuranceTitle.ZLECENIE) and employer_insured_count > params.payer_employee_threshold:
+    if insurance_title == InsuranceTitle.UOP and employer_insured_count > params.payer_employee_threshold:
         return f"Płatnik składek (pracodawca zgłaszający > {params.payer_employee_threshold} ubezpieczonych)"
+    if insurance_title == InsuranceTitle.ZLECENIE and employer_insured_count > params.payer_employee_threshold:
+        return f"Płatnik składek (zleceniodawca zgłaszający > {params.payer_employee_threshold} ubezpieczonych)"
     return "Zakład Ubezpieczeń Społecznych (ZUS)"
 
 
@@ -399,7 +407,7 @@ def calculate_pregnancy_benefit(
             if req.insurance_title == InsuranceTitle.UOP
             else params.waiting_period_voluntary_days
         )
-        _, waiting_met = _resolve_waiting_period_exemption(req, waiting_days, warnings)
+        effective_exempt, waiting_met = _resolve_waiting_period_exemption(req, waiting_days, warnings)
         if not waiting_met:
             warnings.append(
                 f"Brak prawa po ustaniu ubezpieczenia (art. 13 ust. 1 pkt 3 w zw. z art. 4 ust. 1 ustawy zasiłkowej): w czasie trwania ubezpieczenia nie upłynął okres wyczekiwania ({req.insurance_days}/{waiting_days} dni), więc prawo do zasiłku nie zostało nabyte przed ustaniem tytułu."
@@ -434,7 +442,7 @@ def calculate_pregnancy_benefit(
             fte_fraction=req.fte_fraction,
         )
         # Art. 46: ograniczenie bezpośrednio podstawy wymiaru zasiłku (już po -13,71%) do 100% przeciętnego wynagrodzenia
-        art46_cap = round(params.post_employment_sickness_cap_monthly_gross, 2)
+        art46_cap = _round_pln(params.post_employment_sickness_cap_monthly_gross)
         if base > art46_cap:
             base = art46_cap
             base_expl += f" Ograniczono podstawę po ustaniu ubezpieczenia do 100% przeciętnego wynagrodzenia: {art46_cap:.2f} zł (art. 46 ustawy zasiłkowej)."
@@ -456,8 +464,8 @@ def calculate_pregnancy_benefit(
                 "Uwaga (art. 13 ustawy zasiłkowej): Zasiłek po ustaniu zatrudnienia nie przysługuje m.in. w razie podjęcia lub kontynuowania innej działalności zarobkowej, prawa do emerytury/renty, zasiłku dla bezrobotnych albo obowiązkowego ubezpieczenia w KRUS.",
             ]
         )
-        daily = round((base * rate) / 30.0, 2)
-        monthly = round(base * rate, 2)
+        daily = _round_pln((base * rate) / 30.0)
+        monthly = _round_pln(base * rate)
         rehab_rate = params.rehabilitation_benefit_pregnancy_rate
         max_days = params.sickness_benefit_pregnancy_max_days if req.has_code_b else 91
         duration_label = (
@@ -474,7 +482,7 @@ def calculate_pregnancy_benefit(
             eligible_sickness_benefit=True,
             eligible_maternity_equivalent=False,
             payout_suspended_due_to_debt=has_blocking_debt,
-            waiting_period_required_days=waiting_days,
+            waiting_period_required_days=0 if effective_exempt else waiting_days,
             waiting_period_met=True,
             benefit_rate_percent=round(rate * 100, 1),
             benefit_base_monthly=base,
@@ -530,8 +538,8 @@ def calculate_pregnancy_benefit(
             params,
             fte_fraction=req.fte_fraction,
         )
-        monthly_mat = round(base * params.maternity_rate_standard, 2)
-        daily = round(monthly_mat / 30.0, 2)
+        monthly_mat = _round_pln(base * params.maternity_rate_standard)
+        daily = _round_pln(monthly_mat / 30.0)
         return PregnancyBenefitResponse(
             eligible_sickness_benefit=False,
             eligible_maternity_equivalent=True,
@@ -592,8 +600,8 @@ def calculate_pregnancy_benefit(
             params,
             fte_fraction=req.fte_fraction,
         )
-        monthly_mat = round(base * params.maternity_rate_standard, 2)
-        daily = round(monthly_mat / 30.0, 2)
+        monthly_mat = _round_pln(base * params.maternity_rate_standard)
+        daily = _round_pln(monthly_mat / 30.0)
         return PregnancyBenefitResponse(
             eligible_sickness_benefit=False,
             eligible_maternity_equivalent=False,
@@ -654,7 +662,7 @@ def calculate_pregnancy_benefit(
         if req.insurance_title == InsuranceTitle.UOP
         else params.waiting_period_voluntary_days
     )
-    _, waiting_met = _resolve_waiting_period_exemption(req, waiting_days, warnings)
+    effective_exempt, waiting_met = _resolve_waiting_period_exemption(req, waiting_days, warnings)
     if not waiting_met:
         warnings.append(
             f"Nie upłynął okres wyczekiwania ({req.insurance_days}/{waiting_days} dni). Prawo do zasiłku powstanie po osiągnięciu {waiting_days} dni nieprzerwanego ubezpieczenia (wlicza się poprzednie okresy, jeśli przerwa nie przekroczyła 30 dni — art. 4 ust. 2)."
@@ -688,11 +696,12 @@ def calculate_pregnancy_benefit(
             "Informacja (art. 92 § 5 Kodeksu pracy): Skrócony 14-dniowy okres wynagrodzenia chorobowego finansowanego przez pracodawcę dotyczy niezdolności do pracy przypadającej po roku kalendarzowym, w którym pracownik ukończył 50. rok życia."
         )
 
-    # Art. 11 ust. 2 pkt 1: ciąża daje 100% z mocy ustawy; kod "B" jest dowodem na e-ZLA
+    # Art. 8 ust. 1 i art. 11 ust. 2 pkt 1: ciąża daje 100% i 270 dni z mocy ustawy; kod "B" jest dowodem na e-ZLA
     rate = params.sickness_benefit_pregnancy_rate if req.has_code_b else params.sickness_benefit_standard_rate
+    max_days = params.sickness_benefit_pregnancy_max_days if req.has_code_b else 182
     if not req.has_code_b:
         warnings.append(
-            f"Zgodnie z art. 11 ust. 2 pkt 1 ustawy zasiłkowej zasiłek chorobowy w okresie ciąży wynosi 100% podstawy wymiaru. Kod literowy „B” na e-ZLA stanowi dowód stanu ciąży — bez niego płatnik/ZUS wypłaci wstępnie {int(params.sickness_benefit_standard_rate*100)}%, ale po dostarczeniu odrębnego zaświadczenia lekarskiego o ciąży przysługuje pełne wyrównanie do 100%."
+            f"Zgodnie z art. 8 ust. 1 i art. 11 ust. 2 pkt 1 ustawy zasiłkowej zasiłek chorobowy w okresie ciąży wynosi 100% podstawy wymiaru do {params.sickness_benefit_pregnancy_max_days} dni. Kod literowy „B” na e-ZLA stanowi dowód stanu ciąży — bez niego płatnik/ZUS zastosuje wstępnie {int(params.sickness_benefit_standard_rate*100)}% i standardowy limit 182 dni, ale po dostarczeniu odrębnego zaświadczenia lekarskiego o ciąży przysługuje pełne wyrównanie do 100% oraz okres zasiłkowy do {params.sickness_benefit_pregnancy_max_days} dni."
         )
 
     base, base_expl = _compute_benefit_base_with_explanation(
@@ -703,11 +712,11 @@ def calculate_pregnancy_benefit(
         params,
         fte_fraction=req.fte_fraction,
     )
-    daily = round((base * rate) / 30.0, 2)
-    monthly = round(base * rate, 2)
+    daily = _round_pln((base * rate) / 30.0)
+    monthly = _round_pln(base * rate)
     rehab_rate = params.rehabilitation_benefit_pregnancy_rate
-    rehab_monthly = round(base * rehab_rate, 2)
-    rehab_daily = round((base * rehab_rate) / 30.0, 2)
+    rehab_monthly = _round_pln(base * rehab_rate)
+    rehab_daily = _round_pln((base * rehab_rate) / 30.0)
 
     employer_days = 0
     if req.insurance_title == InsuranceTitle.UOP:
@@ -721,21 +730,28 @@ def calculate_pregnancy_benefit(
     if not waiting_met:
         summary = f"Ubezpieczenie aktywne, ale okres wyczekiwania ({req.insurance_days}/{waiting_days} dni) nie został jeszcze spełniony. Poniższe kwoty stanowią prognozę po spełnieniu okresu wyczekiwania."
     elif has_blocking_debt:
-        summary = f"Wypłata zasiłku chorobowego w ciąży ({int(rate * 100)}%, maks. {params.sickness_benefit_pregnancy_max_days} dni) jest wstrzymana z powodu zadłużenia składkowego ZUS ({req.contribution_debt_pln:.2f} zł > {debt_threshold:.2f} zł — art. 2a). Poniższe kwoty przysługują po spłacie całości zadłużenia w terminie {params.claim_limitation_months} miesięcy."
+        summary = f"Wypłata zasiłku chorobowego w ciąży ({int(rate * 100)}%, maks. {max_days} dni) jest wstrzymana z powodu zadłużenia składkowego ZUS ({req.contribution_debt_pln:.2f} zł > {debt_threshold:.2f} zł — art. 2a). Poniższe kwoty przysługują po spłacie całości zadłużenia w terminie {params.claim_limitation_months} miesięcy."
     else:
-        summary = f"Przysługuje zasiłek chorobowy w ciąży w wysokości {int(rate * 100)}% podstawy wymiaru (maks. {params.sickness_benefit_pregnancy_max_days} dni), a po jego wyczerpaniu świadczenie rehabilitacyjne w ciąży ({int(rehab_rate*100)}% podstawy wymiaru, do {params.rehabilitation_benefit_max_days} dni)."
+        summary = f"Przysługuje zasiłek chorobowy w ciąży w wysokości {int(rate * 100)}% podstawy wymiaru (maks. {max_days} dni), a po jego wyczerpaniu świadczenie rehabilitacyjne w ciąży ({int(rehab_rate*100)}% podstawy wymiaru, do {params.rehabilitation_benefit_max_days} dni)."
 
-    duration_label = (
-        f"Maks. {params.sickness_benefit_pregnancy_max_days} dni (pierwsze {employer_days} dni wynagrodzenie chorobowe pracodawcy, od {employer_days + 1}. dnia zasiłek z FUS)"
-        if employer_days > 0
-        else f"Maks. {params.sickness_benefit_pregnancy_max_days} dni (zasiłek z FUS od 1. dnia niezdolności do pracy)"
-    )
+    if req.has_code_b:
+        duration_label = (
+            f"Maks. {max_days} dni (pierwsze {employer_days} dni wynagrodzenie chorobowe pracodawcy, od {employer_days + 1}. dnia zasiłek z FUS)"
+            if employer_days > 0
+            else f"Maks. {max_days} dni (zasiłek z FUS od 1. dnia niezdolności do pracy)"
+        )
+    else:
+        duration_label = (
+            f"Wstępnie maks. 182 dni bez kodu B (pierwsze {employer_days} dni pracodawca, od {employer_days + 1}. dnia FUS) — po zaświadczeniu o ciąży do {params.sickness_benefit_pregnancy_max_days} dni"
+            if employer_days > 0
+            else f"Wstępnie maks. 182 dni bez kodu B (FUS od 1. dnia) — po zaświadczeniu o ciąży do {params.sickness_benefit_pregnancy_max_days} dni"
+        )
 
     return PregnancyBenefitResponse(
         eligible_sickness_benefit=waiting_met,
         eligible_maternity_equivalent=False,
         payout_suspended_due_to_debt=has_blocking_debt,
-        waiting_period_required_days=waiting_days,
+        waiting_period_required_days=0 if effective_exempt else waiting_days,
         waiting_period_met=waiting_met,
         benefit_rate_percent=round(rate * 100, 1),
         benefit_base_monthly=base,
@@ -745,7 +761,7 @@ def calculate_pregnancy_benefit(
         rehabilitation_monthly_gross=rehab_monthly if waiting_met else 0.0,
         rehabilitation_daily_gross=rehab_daily if waiting_met else 0.0,
         rehabilitation_max_days=params.rehabilitation_benefit_max_days if waiting_met else 0,
-        max_benefit_days=params.sickness_benefit_pregnancy_max_days,
+        max_benefit_days=max_days,
         benefit_duration_label=duration_label,
         employer_pay_days=employer_days,
         payer=payer,
@@ -1157,6 +1173,7 @@ def calculate_integrated_maternity(
             )
 
         orig_pool_u = parental_pool
+
         if req.scenario == BenefitScenario.ADOPTION and not apply_reduced_9_weeks_regime and weeks_until_age_limit is not None:
             if parental_pool > weeks_until_age_limit:
                 parental_pool = weeks_until_age_limit
@@ -1178,8 +1195,6 @@ def calculate_integrated_maternity(
             father_par_weeks = max_father_parental
         elif req.father_takes_parental_weeks > 0:
             father_par_weeks = req.father_takes_parental_weeks
-        elif req.father_takes_paternity_leave:
-            father_par_weeks = 0
         else:
             father_par_weeks = max_father_parental
 

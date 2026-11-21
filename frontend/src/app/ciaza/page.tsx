@@ -172,7 +172,7 @@ export default function PregnancyPage() {
           )}
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <div>
+            <div className="flex flex-col justify-between">
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
                 <InfoTooltip
                   label="Okres ubezpieczenia (dni)"
@@ -187,7 +187,7 @@ export default function PregnancyPage() {
                 className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
               />
             </div>
-            <div>
+            <div className="flex flex-col justify-between">
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
                 <InfoTooltip
                   label="Wynagrodzenie / podstawa brutto (zł)"
@@ -284,41 +284,37 @@ export default function PregnancyPage() {
             />
           </div>
 
-          {(insuranceTitle === "uop" || insuranceTitle === "zlecenie" || insuranceTitle === "jdg") && (
-            <div className="grid gap-4 sm:grid-cols-2">
-              {(insuranceTitle === "uop" || insuranceTitle === "zlecenie") && (
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
-                    Liczba ubezpieczonych u płatnika (stan na 30.11)
-                  </label>
-                  <input
-                    type="number"
-                    min={0}
-                    value={employerCount}
-                    onChange={(e) => setEmployerCount(Number(e.target.value))}
-                    className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
-                  />
-                </div>
-              )}
+          {(insuranceTitle === "uop" || insuranceTitle === "zlecenie") && (
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                Liczba ubezpieczonych u płatnika (stan na 30.11)
+              </label>
+              <input
+                type="number"
+                min={0}
+                value={employerCount}
+                onChange={(e) => setEmployerCount(Number(e.target.value))}
+                className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
+              />
+            </div>
+          )}
 
-              {insuranceTitle === "jdg" && (
-                <div className="sm:col-span-2">
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
-                    <InfoTooltip
-                      label="Zaległość składkowa ZUS (zł)"
-                      tooltip={`Art. 2a ustawy zasiłkowej: zadłużenie przekraczające 1% minimalnego wynagrodzenia (${debtThreshold} zł w ${paramsYear} r.) wstrzymuje wypłatę zasiłku na JDG do czasu spłaty (przedawnienie po ${legalParams?.claim_limitation_months ?? 6} miesiącach).`}
-                    />
-                  </label>
-                  <input
-                    type="number"
-                    min={0}
-                    step="any"
-                    value={contributionDebt}
-                    onChange={(e) => setContributionDebt(Number(e.target.value))}
-                    className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
-                  />
-                </div>
-              )}
+          {insuranceTitle === "jdg" && (
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                <InfoTooltip
+                  label="Zaległość składkowa ZUS (zł)"
+                  tooltip={`Art. 2a ustawy zasiłkowej: zadłużenie przekraczające 1% minimalnego wynagrodzenia (${debtThreshold} zł w ${paramsYear} r.) wstrzymuje wypłatę zasiłku na JDG do czasu spłaty (przedawnienie po ${legalParams?.claim_limitation_months ?? 6} miesiącach).`}
+                />
+              </label>
+              <input
+                type="number"
+                min={0}
+                step="any"
+                value={contributionDebt}
+                onChange={(e) => setContributionDebt(Number(e.target.value))}
+                className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
+              />
             </div>
           )}
 
