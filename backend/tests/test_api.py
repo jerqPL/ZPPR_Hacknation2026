@@ -218,3 +218,19 @@ def test_persona_404_and_application_deadline():
     data = sub.json()
     assert data["deadline_21_days"] == "2026-11-22"
     assert "WNIOSEK O UDZIELENIE URLOPU" in data["generated_document_text"]
+
+    pdf_res = client.post(
+        "/api/v1/documents/pdf",
+        json={
+            "application_type": "leave_employer",
+            "applicant_name": "Anna Kowalska",
+            "pesel_masked": "920514*****",
+            "child_birth_date": "2026-11-01",
+            "leave_start_date": "2026-11-01",
+            "payment_variant": "81_5",
+            "recipient": "Pracodawca",
+        },
+    )
+    assert pdf_res.status_code == 200
+    assert pdf_res.headers["content-type"] == "application/pdf"
+    assert pdf_res.content.startswith(b"%PDF-")

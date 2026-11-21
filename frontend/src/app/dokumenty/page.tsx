@@ -15,23 +15,28 @@ import type {
 const OFFICIAL_FORM_LINKS = [
   {
     code: "ZAM",
-    name: "Wniosek o zasiłek macierzyński (od 24.10.2026 zastępuje ZUR i ZAO)",
-    url: "https://www.zus.pl/wzory-formularzy/zasilki/zasilek-macierzynski",
+    name: "Wniosek o zasiłek macierzyński (aktualizacja 24.10.2026 — zastępuje ZUR i ZAO)",
+    url: "https://www.zus.pl/-/wniosek-zas-54",
   },
   {
-    code: "Z-3 / Z-3a",
-    name: "Zaświadczenie płatnika składek (pracownik / zleceniobiorca)",
-    url: "https://www.zus.pl/wzory-formularzy/zasilki/zaswiadczenia-platnika-skladek",
+    code: "Z-3",
+    name: "Zaświadczenie płatnika składek — dla pracownika (UoP)",
+    url: "https://www.zus.pl/wzory-formularzy/zasilki/zasilek-chorobowy/-/asset_publisher/TS3WYPoYHIaG/content/zaswiadczenie-zus-z-3",
+  },
+  {
+    code: "Z-3a",
+    name: "Zaświadczenie płatnika składek — dla zleceniobiorcy",
+    url: "https://www.zus.pl/wzory-formularzy/zasilki/zasilek-macierzynski/-/asset_publisher/m5Npg4icZlfP/content/zaswiadczenie-zus-z-3a",
   },
   {
     code: "ZAS-53",
-    name: "Wniosek o zasiłek chorobowy (np. ciąża na JDG)",
-    url: "https://www.zus.pl/wzory-formularzy/zasilki/zasilek-chorobowy",
+    name: "Wniosek o zasiłek chorobowy (np. ciąża na JDG, aktualizacja 24.10.2026)",
+    url: "https://www.zus.pl/-/zaswiadczenie-zas-53",
   },
   {
     code: "USC (gov.pl)",
-    name: "Uzyskaj odpis aktu urodzenia online (e-Usługa gov.pl)",
-    url: "https://www.gov.pl/web/gov/uzyskaj-odpis-aktu-stanu-cywilnego-urodzenia-slubu-zgonu",
+    name: "Uzyskaj odpis aktu stanu cywilnego (urodzenia, małżeństwa, zgonu)",
+    url: "https://www.gov.pl/web/gov/uzyskaj-odpis-aktu-stanu-cywilnego-urodzenia-malzenstwa-zgonu",
   },
 ];
 
@@ -90,27 +95,29 @@ export default function DocumentsPage() {
     return d.toISOString().slice(0, 10);
   }, [childBirthDate]);
 
+  const buildPayload = () => ({
+    application_type: appType,
+    applicant_name: applicantName,
+    pesel_masked: user?.pesel_masked || "920514*****",
+    child_birth_date: childBirthDate || null,
+    leave_start_date: leaveStartDate || null,
+    leave_end_date: leaveEndDate || null,
+    leave_parts_count: Number(leaveParts),
+    work_fte_fraction: appType === "leave_work_combination" ? Number(workFte) : null,
+    hospitalization_from: appType === "leave_supplementary" ? hospFrom || null : null,
+    hospitalization_to: appType === "leave_supplementary" ? hospTo || null : null,
+    resignation_date: appType === "leave_resignation" ? resignationDate || null : null,
+    payment_variant: paymentVariant,
+    recipient: recipientName,
+    notes: notes || null,
+  });
+
   const handleSimulateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
     setError(null);
     try {
-      const res = await api.submitApplication({
-        application_type: appType,
-        applicant_name: applicantName,
-        pesel_masked: user?.pesel_masked || "920514*****",
-        child_birth_date: childBirthDate || null,
-        leave_start_date: leaveStartDate || null,
-        leave_end_date: leaveEndDate || null,
-        leave_parts_count: Number(leaveParts),
-        work_fte_fraction: appType === "leave_work_combination" ? Number(workFte) : null,
-        hospitalization_from: appType === "leave_supplementary" ? hospFrom || null : null,
-        hospitalization_to: appType === "leave_supplementary" ? hospTo || null : null,
-        resignation_date: appType === "leave_resignation" ? resignationDate || null : null,
-        payment_variant: paymentVariant,
-        recipient: recipientName,
-        notes: notes || null,
-      });
+      const res = await api.submitApplication(buildPayload());
       setSubmission(res);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Nie udało się wygenerować wniosku");
@@ -119,17 +126,20 @@ export default function DocumentsPage() {
     }
   };
 
-  const handleDownloadDoc = () => {
+  const handleDownloadPdf = async () => {
     if (!submission) return;
-    const blob = new Blob([submission.generated_document_text], {
-      type: "text/plain;charset=utf-8",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${submission.reference_number}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
+    setError(null);
+    try {
+      const pdfBlob = await api.downloadApplicationPdf(buildPayload());
+      const url = URL.createObjectURL(pdfBlob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${submission.reference_number}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Nie udało się pobrać pliku PDF");
+    }
   };
 
   return (
@@ -504,20 +514,20 @@ export default function DocumentsPage() {
                     className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-[#1e3328]"
                   >
                     <Printer className="h-3.5 w-3.5" />
-                    Drukuj / Zapisz PDF
+                    Drukuj (tylko dokument)
                   </button>
                   <button
                     type="button"
-                    onClick={handleDownloadDoc}
+                    onClick={handleDownloadPdf}
                     className="inline-flex items-center gap-1.5 rounded-lg bg-[#007834] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#005a27]"
                   >
                     <Download className="h-3.5 w-3.5" />
-                    Pobierz
+                    Pobierz PDF
                   </button>
                 </div>
               </div>
 
-              <div className="mt-4 rounded-xl border border-slate-300 bg-white p-6 font-serif text-[13px] leading-relaxed text-slate-900 shadow-inner">
+              <div className="printable-document mt-4 rounded-xl border border-slate-300 bg-white p-6 font-serif text-[13px] leading-relaxed text-slate-900 shadow-inner">
                 <pre className="whitespace-pre-wrap font-serif">{submission.generated_document_text}</pre>
               </div>
             </div>

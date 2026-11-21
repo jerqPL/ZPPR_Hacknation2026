@@ -1,4 +1,5 @@
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile
+from fastapi.responses import Response
 from app.models.calculator import InsuranceTitle
 from app.models.guidance import DocumentGuidanceResponse, PdfAnalysisResult, SampleCase
 from app.models.simulation import ApplicationSubmissionRequest, ApplicationSubmissionResponse
@@ -21,6 +22,16 @@ def documents_guidance(
 @router.post("/submit", response_model=ApplicationSubmissionResponse)
 def submit_application(req: ApplicationSubmissionRequest):
     return document_service.simulate_application_submission(req)
+
+
+@router.post("/pdf")
+def download_application_pdf(req: ApplicationSubmissionRequest):
+    ref, pdf_bytes = document_service.generate_application_pdf(req, parameter_store.get())
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{ref}.pdf"'},
+    )
 
 
 @router.get("/sample-cases", response_model=list[SampleCase])

@@ -80,6 +80,17 @@ export const api = {
       method: "POST",
       body: JSON.stringify(payload),
     }),
+  downloadApplicationPdf: async (payload: Record<string, unknown>): Promise<Blob> => {
+    const res = await fetch(`${API_BASE}/documents/pdf`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      throw new Error(`Błąd generowania PDF (${res.status})`);
+    }
+    return res.blob();
+  },
   getSampleCases: () => apiFetch<SampleCase[]>("/documents/sample-cases"),
   analyzePdf: async (file: File): Promise<PdfAnalysisResult> => {
     const form = new FormData();

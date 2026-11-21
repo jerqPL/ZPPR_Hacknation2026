@@ -280,3 +280,54 @@ def simulate_application_submission(
         summary=f"Przygotowano {title} dla {req.applicant_name} (adresat: {req.recipient}).",
         generated_document_text="\n".join(lines),
     )
+
+
+def generate_application_pdf(
+    req: ApplicationSubmissionRequest,
+    params: LegalParameters | None = None,
+) -> tuple[str, bytes]:
+    """Generuje gotowy do druku plik PDF (A4) z pełną obsługą polskich znaków (DejaVuSans)."""
+    from pathlib import Path
+    from fpdf import FPDF
+
+    doc_data = simulate_application_submission(req, params)
+    pdf = FPDF(format="A4")
+    pdf.set_margins(20, 20, 20)
+    pdf.set_auto_page_break(auto=True, margin=20)
+    pdf.add_page()
+
+    regular_font = Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf")
+    bold_font = Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf")
+    if regular_font.exists() and bold_font.exists():
+        pdf.add_font("DejaVu", "", str(regular_font))
+        pdf.add_font("DejaVu", "B", str(bold_font))
+        font_family = "DejaVu"
+    else:
+        font_family = "Helvetica"
+
+    text_lines = doc_data.generated_document_text.splitlines()
+    for line in text_lines:
+        stripped = line.strip()
+        pdf.set_x(pdf.l_margin)
+        if stripped.startswith("WNIOSEK "):
+            pdf.ln(3)
+            pdf.set_font(font_family, "B", 12)
+            pdf.multi_cell(pdf.epw, 7, stripped, align="C", new_x="LMARGIN", new_y="NEXT")
+            pdf.ln(3)
+        elif stripped in ("WNIOSKODAWCA:", "ADRESAT:", "ZAŁĄCZNIKI:"):
+            pdf.set_font(font_family, "B", 10)
+            pdf.multi_cell(pdf.epw, 6, stripped, new_x="LMARGIN", new_y="NEXT")
+        elif stripped.startswith("Miejscowość, dnia"):
+            pdf.set_font(font_family, "", 10)
+            pdf.multi_cell(pdf.epw, 6, stripped, align="R", new_x="LMARGIN", new_y="NEXT")
+        elif stripped.startswith("....") or stripped.startswith("(czytelny podpis"):
+            pdf.set_font(font_family, "", 9)
+            pdf.multi_cell(pdf.epw, 5.5, stripped, align="R", new_x="LMARGIN", new_y="NEXT")
+        elif not stripped:
+            pdf.ln(3)
+        else:
+            pdf.set_font(font_family, "", 10)
+            pdf.multi_cell(pdf.epw, 5.8, stripped, new_x="LMARGIN", new_y="NEXT")
+
+    return doc_data.reference_number, bytes(pdf.output())
+
