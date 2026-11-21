@@ -57,17 +57,17 @@ export default function DocumentsPage() {
       <div className="grid gap-8 lg:grid-cols-12">
         {/* Lista dokumentów */}
         <section className="space-y-4 lg:col-span-7">
-          <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-xs">
-            <h2 className="text-base font-bold text-slate-900">Kto wypłaca zasiłek i jakie dokumenty złożyć?</h2>
+          <div className="rounded-xl border border-[#CCC5B9] bg-[#FFFCF2] p-6 shadow-xs">
+            <h2 className="text-base font-bold text-[#000000]">Kto wypłaca zasiłek i jakie dokumenty złożyć?</h2>
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
               <div>
-                <label className="block text-xs font-semibold text-slate-700">
+                <label className="block text-xs font-semibold text-[#262522]">
                   Forma zatrudnienia / ubezpieczenia
                 </label>
                 <select
                   value={insuranceTitle}
                   onChange={(e) => setInsuranceTitle(e.target.value as InsuranceTitle)}
-                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                  className="mt-1 w-full rounded-lg border border-[#CCC5B9] px-3 py-2 text-sm"
                 >
                   <option value="uop">Umowa o pracę</option>
                   <option value="zlecenie">Umowa zlecenie</option>
@@ -75,7 +75,7 @@ export default function DocumentsPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-700">
+                <label className="block text-xs font-semibold text-[#262522]">
                   Liczba ubezpieczonych u płatnika
                 </label>
                 <input
@@ -83,38 +83,38 @@ export default function DocumentsPage() {
                   min={0}
                   value={employerCount}
                   onChange={(e) => setEmployerCount(Number(e.target.value))}
-                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                  className="mt-1 w-full rounded-lg border border-[#CCC5B9] px-3 py-2 text-sm"
                 />
               </div>
             </div>
 
             {guidance && (
               <div className="mt-5 space-y-4">
-                <div className="rounded-lg bg-[#e6f4ec] p-4 text-xs text-[#005a27]">
+                <div className="rounded-lg bg-[#F5F1E6] p-4 text-xs text-[#000000]">
                   <p className="font-bold">Wypłacający zasiłek: {guidance.payer}</p>
                   <p className="mt-1">{guidance.payer_explanation}</p>
                 </div>
 
                 <div className="space-y-3">
                   {guidance.documents.map((d, idx) => (
-                    <div key={idx} className="rounded-lg border border-slate-200 p-4 text-xs">
+                    <div key={idx} className="rounded-lg border border-[#CCC5B9] p-4 text-xs">
                       <div className="flex flex-wrap items-center justify-between gap-2">
-                        <span className="rounded bg-slate-900 px-2 py-0.5 font-mono text-[11px] font-bold text-white">
+                        <span className="rounded bg-[#000000] px-2 py-0.5 font-mono text-[11px] font-bold text-[#FFFCF2]">
                           {d.form_code}
                         </span>
-                        <span className="text-slate-500">Termin: {d.deadline}</span>
+                        <span className="text-[#403D39]/80">Termin: {d.deadline}</span>
                       </div>
-                      <p className="mt-2 text-sm font-bold text-slate-900">{d.title}</p>
-                      <p className="mt-1 text-slate-600">
+                      <p className="mt-2 text-sm font-bold text-[#000000]">{d.title}</p>
+                      <p className="mt-1 text-[#403D39]">
                         <strong>Składa:</strong> {d.submitted_by} → <strong>Do:</strong>{" "}
                         {d.submitted_to}
                       </p>
-                      <p className="mt-1 text-slate-500">{d.notes}</p>
+                      <p className="mt-1 text-[#403D39]/80">{d.notes}</p>
                     </div>
                   ))}
                 </div>
 
-                <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-xs text-amber-900">
+                <div className="rounded-lg border border-[#CCC5B9] bg-[#F5F1E6] p-4 text-xs text-[#000000]">
                   <p className="font-bold">Zmiany formularzy ZUS (od 24.10.2026)</p>
                   <ul className="mt-1 list-disc space-y-1 pl-4">
                     {guidance.important_notes_2026.map((n, i) => (
@@ -128,21 +128,21 @@ export default function DocumentsPage() {
         </section>
 
         {/* Kreator / symulator wniosków */}
-        <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-xs lg:col-span-5">
-          <h2 className="text-base font-bold text-slate-900">
+        <section className="rounded-xl border border-[#CCC5B9] bg-[#FFFCF2] p-6 shadow-xs lg:col-span-5">
+          <h2 className="text-base font-bold text-[#000000]">
             Symulator złożenia wniosku (Urlop / ZAM / Akt urodzenia USC)
           </h2>
-          <p className="mt-1 text-xs text-slate-600">
+          <p className="mt-1 text-xs text-[#403D39]">
             Wypróbuj elektroniczne wypełnienie i wysłanie dokumentu w trybie symulacji.
           </p>
 
           <form onSubmit={handleSimulateSubmit} className="mt-4 space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-700">Rodzaj wniosku</label>
+              <label className="block text-xs font-semibold text-[#262522]">Rodzaj wniosku</label>
               <select
                 value={appType}
                 onChange={(e) => setAppType(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                className="mt-1 w-full rounded-lg border border-[#CCC5B9] px-3 py-2 text-sm"
               >
                 <option value="leave_employer">
                   Wniosek do pracodawcy o urlop macierzyński i rodzicielski
@@ -155,7 +155,7 @@ export default function DocumentsPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700">
+              <label className="block text-xs font-semibold text-[#262522]">
                 Imię i nazwisko wnioskodawcy
               </label>
               <input
@@ -163,25 +163,25 @@ export default function DocumentsPage() {
                 required
                 value={applicantName}
                 onChange={(e) => setApplicantName(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                className="mt-1 w-full rounded-lg border border-[#CCC5B9] px-3 py-2 text-sm"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700">
+              <label className="block text-xs font-semibold text-[#262522]">
                 Data porodu / urodzenia dziecka
               </label>
               <input
                 type="date"
                 value={childBirthDate}
                 onChange={(e) => setChildBirthDate(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                className="mt-1 w-full rounded-lg border border-[#CCC5B9] px-3 py-2 text-sm"
               />
             </div>
 
             <button
               type="submit"
-              className="w-full rounded-lg bg-[#007834] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#005a27]"
+              className="w-full rounded-lg bg-[#000000] px-4 py-2.5 text-sm font-semibold text-[#FFFCF2] transition hover:bg-[#262522]"
             >
               Zasymuluj wysłanie wniosku
             </button>

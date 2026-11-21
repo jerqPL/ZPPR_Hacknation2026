@@ -71,18 +71,18 @@ export default function SampleCasesPdfPage() {
 
       <div className="grid gap-8 lg:grid-cols-12">
         {/* Upload PDF */}
-        <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-xs lg:col-span-5">
-          <h2 className="text-base font-bold text-slate-900">Upload wniosku PDF</h2>
-          <p className="mt-1 text-xs text-slate-600">
+        <section className="rounded-xl border border-[#CCC5B9] bg-[#FFFCF2] p-6 shadow-xs lg:col-span-5">
+          <h2 className="text-base font-bold text-[#000000]">Upload wniosku PDF</h2>
+          <p className="mt-1 text-xs text-[#403D39]">
             Parser automatycznie wykrywa kody formularzy ZUS (ZAM, Z-3, Z-3a, ZAS-53, e-ZLA) oraz
             weryfikuje warstwę tekstową dokumentu.
           </p>
 
-          <label className="mt-4 flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-6 text-center transition hover:border-[#007834]">
-            <span className="text-sm font-semibold text-[#007834]">
+          <label className="mt-4 flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-[#CCC5B9] bg-[#F5F1E6] p-6 text-center transition hover:border-[#000000]">
+            <span className="text-sm font-semibold text-[#000000]">
               {uploading ? "Analizowanie PDF..." : "Wybierz plik PDF z dysku"}
             </span>
-            <span className="mt-1 text-xs text-slate-500">Maksymalny rozmiar: 10 MB</span>
+            <span className="mt-1 text-xs text-[#403D39]/80">Maksymalny rozmiar: 10 MB</span>
             <input
               type="file"
               accept="application/pdf"
@@ -92,8 +92,8 @@ export default function SampleCasesPdfPage() {
           </label>
 
           {pdfResult && (
-            <div className="mt-5 space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-4 text-xs">
-              <p className="font-bold text-slate-900">Wynik analizy: {pdfResult.filename}</p>
+            <div className="mt-5 space-y-2 rounded-lg border border-[#CCC5B9] bg-[#F5F1E6] p-4 text-xs">
+              <p className="font-bold text-[#000000]">Wynik analizy: {pdfResult.filename}</p>
               <p>
                 <strong>Wykryte formularze:</strong>{" "}
                 {pdfResult.detected_forms.length > 0
@@ -105,7 +105,7 @@ export default function SampleCasesPdfPage() {
                 <span
                   className={
                     pdfResult.insurance_verified
-                      ? "font-semibold text-emerald-700"
+                      ? "font-semibold text-[#000000]"
                       : "font-semibold text-red-700"
                   }
                 >
@@ -120,7 +120,7 @@ export default function SampleCasesPdfPage() {
                   <strong>Wykryta kwota:</strong> {pdfResult.suggested_gross_salary.toFixed(2)} zł
                 </p>
               )}
-              <pre className="mt-2 max-h-40 overflow-auto rounded bg-white p-2 text-[11px] text-slate-600">
+              <pre className="mt-2 max-h-40 overflow-auto rounded bg-[#FFFCF2] p-2 text-[11px] text-[#403D39]">
                 {pdfResult.extracted_text_preview}
               </pre>
             </div>
@@ -129,11 +129,11 @@ export default function SampleCasesPdfPage() {
 
         {/* Przykładowe sprawy */}
         <section className="space-y-4 lg:col-span-7">
-          <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-xs">
-            <h2 className="text-base font-bold text-slate-900">
+          <div className="rounded-xl border border-[#CCC5B9] bg-[#FFFCF2] p-6 shadow-xs">
+            <h2 className="text-base font-bold text-[#000000]">
               Przykładowe zestawy testowe (sprawy ZUS)
             </h2>
-            <p className="mt-1 text-xs text-slate-600">
+            <p className="mt-1 text-xs text-[#403D39]">
               Wybierz sprawę, aby zweryfikować prawo do świadczenia i przeliczyć wysokość zasiłku w
               silniku kalkulatora.
             </p>
@@ -142,19 +142,19 @@ export default function SampleCasesPdfPage() {
               {cases.map((c) => (
                 <div
                   key={c.case_id}
-                  className="flex flex-col justify-between gap-3 rounded-lg border border-slate-200 p-4 sm:flex-row sm:items-center"
+                  className="flex flex-col justify-between gap-3 rounded-lg border border-[#CCC5B9] p-4 sm:flex-row sm:items-center"
                 >
                   <div>
-                    <p className="text-sm font-bold text-slate-900">{c.title}</p>
-                    <p className="mt-1 text-xs text-slate-600">{c.description}</p>
-                    <p className="mt-1 text-[11px] font-medium text-[#005a27]">
+                    <p className="text-sm font-bold text-[#000000]">{c.title}</p>
+                    <p className="mt-1 text-xs text-[#403D39]">{c.description}</p>
+                    <p className="mt-1 text-[11px] font-medium text-[#000000]">
                       Oczekiwana decyzja: {c.expected_decision}
                     </p>
                   </div>
                   <button
                     type="button"
                     onClick={() => runSampleCase(c)}
-                    className="shrink-0 rounded-lg bg-[#007834] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#005a27]"
+                    className="shrink-0 rounded-lg bg-[#000000] px-3 py-2 text-xs font-semibold text-[#FFFCF2] transition hover:bg-[#262522]"
                   >
                     Przetestuj w kalkulatorze
                   </button>
@@ -164,27 +164,27 @@ export default function SampleCasesPdfPage() {
           </div>
 
           {selectedCalc && (
-            <div className="rounded-xl border border-[#007834]/30 bg-[#e6f4ec]/50 p-5 text-xs">
-              <p className="font-bold text-slate-900">
+            <div className="rounded-xl border border-[#000000] bg-[#F5F1E6] p-5 text-xs">
+              <p className="font-bold text-[#000000]">
                 Wynik symulacji dla: {selectedCalc.caseItem.title}
               </p>
               {selectedCalc.calc.eligible ? (
                 <div className="mt-2 grid gap-2 sm:grid-cols-3">
-                  <div className="rounded bg-white p-3">
-                    <span className="text-slate-500">Łączny wymiar</span>
-                    <p className="text-base font-bold text-[#005a27]">
+                  <div className="rounded bg-[#FFFCF2] p-3">
+                    <span className="text-[#403D39]/80">Łączny wymiar</span>
+                    <p className="text-base font-bold text-[#000000]">
                       {selectedCalc.calc.total_weeks} tyg.
                     </p>
                   </div>
-                  <div className="rounded bg-white p-3">
-                    <span className="text-slate-500">Podstawa wymiaru</span>
-                    <p className="text-base font-bold text-slate-900">
+                  <div className="rounded bg-[#FFFCF2] p-3">
+                    <span className="text-[#403D39]/80">Podstawa wymiaru</span>
+                    <p className="text-base font-bold text-[#000000]">
                       {selectedCalc.calc.benefit_base_parent1.toFixed(2)} zł
                     </p>
                   </div>
-                  <div className="rounded bg-white p-3">
-                    <span className="text-slate-500">Suma brutto</span>
-                    <p className="text-base font-bold text-slate-900">
+                  <div className="rounded bg-[#FFFCF2] p-3">
+                    <span className="text-[#403D39]/80">Suma brutto</span>
+                    <p className="text-base font-bold text-[#000000]">
                       {selectedCalc.calc.total_estimated_gross_pln.toLocaleString("pl-PL")} zł
                     </p>
                   </div>
@@ -194,7 +194,7 @@ export default function SampleCasesPdfPage() {
                   ODMOWA: {selectedCalc.calc.ineligibility_reason}
                 </p>
               )}
-              <p className="mt-2 text-slate-700">
+              <p className="mt-2 text-[#262522]">
                 <strong>Płatnik:</strong> {selectedCalc.calc.payer}
               </p>
             </div>
