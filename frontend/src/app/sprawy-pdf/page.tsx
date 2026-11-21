@@ -164,7 +164,7 @@ export default function SampleCasesPdfPage() {
           </div>
 
           {selectedCalc && (
-            <div className="rounded-xl border border-[#007834]/30 bg-[#e6f4ec] dark:bg-[#007834]/20/50 p-5 text-xs">
+            <div className="rounded-xl border border-[#007834]/30 bg-[#e6f4ec]/50 dark:bg-[#007834]/20 p-5 text-xs">
               <p className="font-bold text-slate-900 dark:text-slate-100">
                 Wynik symulacji dla: {selectedCalc.caseItem.title}
               </p>

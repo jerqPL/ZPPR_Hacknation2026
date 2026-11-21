@@ -75,7 +75,7 @@ export default function HomePage() {
     <div className="space-y-10">
       {/* Hero section */}
       <section className="rounded-2xl bg-gradient-to-br from-[#007834] to-[#004d21] p-6 text-white shadow-md sm:p-10">
-        <span className="inline-block rounded-full bg-white dark:bg-[#111c17]/15 px-3 py-1 text-xs font-semibold tracking-wide">
+        <span className="inline-block rounded-full bg-white/15 px-3 py-1 text-xs font-semibold tracking-wide text-white">
           HackNation 2026 • Wyzwanie ZUS
         </span>
         <h1 className="mt-4 text-3xl font-bold tracking-tight sm:text-4xl">
@@ -89,14 +89,14 @@ export default function HomePage() {
         <div className="mt-6 flex flex-wrap gap-3">
           <Link
             href="/kalkulator"
-            className="inline-flex items-center gap-2 rounded-lg bg-white dark:bg-[#111c17] px-5 py-2.5 text-sm font-semibold text-[#005a27] dark:text-emerald-300 shadow-sm transition hover:bg-emerald-50"
+            className="inline-flex items-center gap-2 rounded-lg bg-white px-5 py-2.5 text-sm font-semibold text-[#005a27] shadow-sm transition hover:bg-emerald-50 dark:bg-[#111c17] dark:text-emerald-300 dark:hover:bg-[#16241d]"
           >
             Otwórz zintegrowany kalkulator
             <ArrowRight className="h-4 w-4" />
           </Link>
           <Link
             href="/pue-zus"
-            className="inline-flex items-center gap-2 rounded-lg border border-white/40 bg-white dark:bg-[#111c17]/10 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-white dark:bg-[#111c17]/20"
+            className="inline-flex items-center gap-2 rounded-lg border border-white/40 bg-white/10 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-white/20"
           >
             Zaloguj przez mObywatel (symulacja)
           </Link>
