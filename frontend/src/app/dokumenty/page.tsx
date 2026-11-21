@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Download, Printer } from "lucide-react";
+import { Download, ExternalLink, FileText, Printer } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { useUser } from "@/components/UserContext";
 import { api } from "@/lib/api";
@@ -12,6 +12,29 @@ import type {
   PaymentVariant,
 } from "@/lib/types";
 
+const OFFICIAL_FORM_LINKS = [
+  {
+    code: "ZAM",
+    name: "Wniosek o zasiłek macierzyński (od 24.10.2026 zastępuje ZUR i ZAO)",
+    url: "https://www.zus.pl/wzory-formularzy/zasilki/zasilek-macierzynski",
+  },
+  {
+    code: "Z-3 / Z-3a",
+    name: "Zaświadczenie płatnika składek (pracownik / zleceniobiorca)",
+    url: "https://www.zus.pl/wzory-formularzy/zasilki/zaswiadczenia-platnika-skladek",
+  },
+  {
+    code: "ZAS-53",
+    name: "Wniosek o zasiłek chorobowy (np. ciąża na JDG)",
+    url: "https://www.zus.pl/wzory-formularzy/zasilki/zasilek-chorobowy",
+  },
+  {
+    code: "USC (gov.pl)",
+    name: "Uzyskaj odpis aktu urodzenia online (e-Usługa gov.pl)",
+    url: "https://www.gov.pl/web/gov/uzyskaj-odpis-aktu-stanu-cywilnego-urodzenia-slubu-zgonu",
+  },
+];
+
 export default function DocumentsPage() {
   const { user } = useUser();
 
@@ -21,9 +44,12 @@ export default function DocumentsPage() {
   const [employerCount, setEmployerCount] = useState(user?.employer_insured_count ?? 25);
   const [guidance, setGuidance] = useState<DocumentGuidanceResponse | null>(null);
 
-  // Rozbudowany kreator wniosków
+  // Kreator formalnych wniosków
   const [appType, setAppType] = useState("leave_employer");
   const [applicantName, setApplicantName] = useState(user?.full_name || "Anna Kowalska");
+  const [recipientName, setRecipientName] = useState(
+    user?.employer_name || "TechPol Sp. z o.o. (Dział Kadr)"
+  );
   const [childBirthDate, setChildBirthDate] = useState("2026-11-20");
   const [leaveStartDate, setLeaveStartDate] = useState("2026-11-20");
   const [leaveEndDate, setLeaveEndDate] = useState("2027-11-18");
@@ -46,7 +72,16 @@ export default function DocumentsPage() {
       .catch(() => setGuidance(null));
   }, [insuranceTitle, employerCount]);
 
-  // Automatyczne wyliczenie nieprzekraczalnego terminu 21 dni po porodzie
+  useEffect(() => {
+    if (appType === "zam_zus") {
+      setRecipientName("Zakład Ubezpieczeń Społecznych (PUE/eZUS)");
+    } else if (appType === "usc_birth_certificate") {
+      setRecipientName("Urząd Stanu Cywilnego (Rejestr Stanu Cywilnego)");
+    } else {
+      setRecipientName(user?.employer_name || "Pracodawca (Dział Kadr)");
+    }
+  }, [appType, user]);
+
   const deadline21Preview = useMemo(() => {
     if (!childBirthDate) return null;
     const d = new Date(`${childBirthDate}T00:00:00`);
@@ -60,13 +95,6 @@ export default function DocumentsPage() {
     setSubmitting(true);
     setError(null);
     try {
-      const recipient =
-        appType === "zam_zus"
-          ? "Zakład Ubezpieczeń Społecznych (PUE/eZUS)"
-          : appType === "usc_birth_certificate"
-          ? "Urząd Stanu Cywilnego (Rejestr Stanu Cywilnego)"
-          : "Pracodawca";
-
       const res = await api.submitApplication({
         application_type: appType,
         applicant_name: applicantName,
@@ -80,7 +108,7 @@ export default function DocumentsPage() {
         hospitalization_to: appType === "leave_supplementary" ? hospTo || null : null,
         resignation_date: appType === "leave_resignation" ? resignationDate || null : null,
         payment_variant: paymentVariant,
-        recipient,
+        recipient: recipientName,
         notes: notes || null,
       });
       setSubmission(res);
@@ -91,7 +119,7 @@ export default function DocumentsPage() {
     }
   };
 
-  const handleDownloadTxt = () => {
+  const handleDownloadDoc = () => {
     if (!submission) return;
     const blob = new Blob([submission.generated_document_text], {
       type: "text/plain;charset=utf-8",
@@ -108,14 +136,46 @@ export default function DocumentsPage() {
     <div>
       <PageHeader
         badge="Dokumenty i wnioski"
-        title="Dokumenty, terminy i kreator wniosków"
-        description="Sprawdź, czy Twoje dokumenty trafiają do pracodawcy czy bezpośrednio do ZUS, oblicz termin 21 dni na stawkę 81,5% i wygeneruj gotowy podgląd wniosku do druku lub pobrania."
+        title="Dokumenty, oficjalne wzory ZUS i generator wniosków"
+        description="Sprawdź wymagane dokumenty i terminy, pobierz oficjalne formularze ze strony ZUS / gov.pl lub wygeneruj gotowe pismo urlopowe zgodne z Rozporządzeniem MRPiPS z 11 marca 2025 r. (Dz.U. poz. 322)."
       />
 
       <div className="grid gap-8 lg:grid-cols-12">
-        {/* Lista dokumentów */}
-        <section className="space-y-4 lg:col-span-6">
-          <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-xs dark:border-emerald-950 dark:bg-[#111c17]">
+        {/* Lewa kolumna: Wymagane dokumenty + Oficjalne wzory z internetu */}
+        <section className="space-y-6 lg:col-span-6">
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs dark:border-emerald-950 dark:bg-[#111c17]">
+            <h2 className="text-base font-bold text-slate-900 dark:text-slate-100">
+              Oficjalne wzory formularzy ZUS i e-Usługi (gov.pl)
+            </h2>
+            <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+              Bezpośrednie przekierowania do aktualnych oficjalnych druków PDF ZUS oraz wniosku USC.
+            </p>
+            <div className="mt-4 grid gap-2.5 sm:grid-cols-2">
+              {OFFICIAL_FORM_LINKS.map((f) => (
+                <a
+                  key={f.code}
+                  href={f.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="group flex flex-col justify-between rounded-xl border border-slate-200 bg-slate-50/80 p-3.5 transition hover:border-[#007834] hover:bg-[#e6f4ec]/50 dark:border-emerald-950 dark:bg-[#16241d] dark:hover:border-emerald-600"
+                >
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <span className="rounded bg-[#007834] px-2 py-0.5 font-mono text-[11px] font-bold text-white">
+                        {f.code}
+                      </span>
+                      <ExternalLink className="h-3.5 w-3.5 text-slate-400 group-hover:text-[#007834] dark:group-hover:text-emerald-400" />
+                    </div>
+                    <p className="mt-2 text-xs font-semibold leading-snug text-slate-800 dark:text-slate-200">
+                      {f.name}
+                    </p>
+                  </div>
+                </a>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs dark:border-emerald-950 dark:bg-[#111c17]">
             <h2 className="text-base font-bold text-slate-900 dark:text-slate-100">
               Kto wypłaca zasiłek i jakie dokumenty złożyć?
             </h2>
@@ -150,7 +210,7 @@ export default function DocumentsPage() {
 
             {guidance && (
               <div className="mt-5 space-y-4">
-                <div className="rounded-lg bg-[#e6f4ec] p-4 text-xs text-[#005a27] dark:bg-[#007834]/20 dark:text-emerald-300">
+                <div className="rounded-xl bg-[#e6f4ec] p-4 text-xs text-[#005a27] dark:bg-[#007834]/20 dark:text-emerald-300">
                   <p className="font-bold">Wypłacający zasiłek: {guidance.payer}</p>
                   <p className="mt-1">{guidance.payer_explanation}</p>
                 </div>
@@ -159,7 +219,7 @@ export default function DocumentsPage() {
                   {guidance.documents.map((d, idx) => (
                     <div
                       key={idx}
-                      className="rounded-lg border border-slate-200 p-4 text-xs dark:border-emerald-950"
+                      className="rounded-xl border border-slate-200 p-4 text-xs dark:border-emerald-950"
                     >
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <span className="rounded bg-slate-900 px-2 py-0.5 font-mono text-[11px] font-bold text-white">
@@ -181,8 +241,8 @@ export default function DocumentsPage() {
                   ))}
                 </div>
 
-                <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-xs text-amber-900 dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-200">
-                  <p className="font-bold">Kluczowe zasady i zmiany (Poradnik ZUS 2026)</p>
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-900 dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-200">
+                  <p className="font-bold">Kluczowe zasady (Poradnik ZUS 2026)</p>
                   <ul className="mt-1 list-disc space-y-1 pl-4">
                     {guidance.important_notes_2026.map((n, i) => (
                       <li key={i}>{n}</li>
@@ -194,16 +254,15 @@ export default function DocumentsPage() {
           </div>
         </section>
 
-        {/* Kreator wniosków + podgląd */}
-        <section className="space-y-4 lg:col-span-6">
-          <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-xs dark:border-emerald-950 dark:bg-[#111c17]">
-            <h2 className="text-base font-bold text-slate-900 dark:text-slate-100">
-              Kreator i symulator złożenia wniosku
-            </h2>
-            <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
-              Wypełnij szczegółowe pola, wygeneruj gotowy dokument do druku/PDF i zasymuluj jego
-              złożenie.
-            </p>
+        {/* Prawa kolumna: Generator formalnego pisma A4 */}
+        <section className="space-y-5 lg:col-span-6">
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs dark:border-emerald-950 dark:bg-[#111c17]">
+            <div className="flex items-center gap-2">
+              <FileText className="h-5 w-5 text-[#007834] dark:text-emerald-400" />
+              <h2 className="text-base font-bold text-slate-900 dark:text-slate-100">
+                Generator wniosku (wzór zgodny z Dz.U. 2025 poz. 322)
+              </h2>
+            </div>
 
             <form onSubmit={handleSimulateSubmit} className="mt-4 space-y-3.5">
               <div>
@@ -225,11 +284,11 @@ export default function DocumentsPage() {
                     Wniosek o łączenie urlopu rodzicielskiego z pracą (maks. 1/2 etatu)
                   </option>
                   <option value="leave_resignation">
-                    Wniosek o rezygnację z części urlopu macierzyńskiego / rodzicielskiego
+                    Wniosek o rezygnację z części urlopu macierzyńskiego
                   </option>
-                  <option value="zam_zus">Wniosek ZAM do ZUS o zasiłek macierzyński</option>
+                  <option value="zam_zus">Wniosek ZUS ZAM o zasiłek macierzyński</option>
                   <option value="usc_birth_certificate">
-                    Wniosek o odpis skrócony/zupełny aktu urodzenia (USC)
+                    Wniosek o odpis skrócony aktu urodzenia (USC)
                   </option>
                 </select>
               </div>
@@ -249,6 +308,21 @@ export default function DocumentsPage() {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    Adresat (pracodawca / ZUS / USC)
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={recipientName}
+                    onChange={(e) => setRecipientName(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700"
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
                     Data urodzenia dziecka
                   </label>
                   <input
@@ -258,16 +332,15 @@ export default function DocumentsPage() {
                     className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700"
                   />
                 </div>
+                {deadline21Preview && (
+                  <div className="flex flex-col justify-center rounded-lg border border-[#007834]/25 bg-[#e6f4ec]/70 px-3 py-2 text-xs text-[#005a27] dark:border-emerald-700/40 dark:bg-emerald-950/40 dark:text-emerald-200">
+                    <span className="text-[11px]">Termin 21 dni (stawka 81,5%)</span>
+                    <span className="font-mono text-sm font-bold">{deadline21Preview}</span>
+                  </div>
+                )}
               </div>
 
-              {deadline21Preview && (
-                <div className="rounded-lg border border-[#007834]/25 bg-[#e6f4ec]/70 px-3 py-2 text-xs text-[#005a27] dark:border-emerald-700/40 dark:bg-emerald-950/40 dark:text-emerald-200">
-                  <strong>Nieprzekraczalny termin 21 dni na stawkę 81,5%:</strong>{" "}
-                  <span className="font-mono font-bold">{deadline21Preview}</span>
-                </div>
-              )}
-
-              {appType !== "usc_birth_certificate" && (
+              {appType !== "usc_birth_certificate" && appType !== "leave_resignation" && (
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
@@ -311,7 +384,7 @@ export default function DocumentsPage() {
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
-                      Liczba części urlopu rodzicielskiego (1–5)
+                      Liczba części rodzicielskiego (1–5)
                     </label>
                     <input
                       type="number"
@@ -372,7 +445,7 @@ export default function DocumentsPage() {
               {appType === "leave_resignation" && (
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
-                    Data rezygnacji z dalszej części urlopu
+                    Data powrotu do pracy (rezygnacji)
                   </label>
                   <input
                     type="date"
@@ -385,13 +458,13 @@ export default function DocumentsPage() {
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
-                  Uwagi dodatkowe (opcjonalnie)
+                  Dodatkowe informacje (opcjonalnie)
                 </label>
                 <input
                   type="text"
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  placeholder="np. przejęcie pozostałej części przez ojca dziecka"
+                  placeholder="np. przejęcie pozostałej części urlopu przez ojca dziecka"
                   className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700"
                 />
               </div>
@@ -401,7 +474,7 @@ export default function DocumentsPage() {
                 disabled={submitting}
                 className="w-full rounded-lg bg-[#007834] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#005a27] disabled:opacity-50"
               >
-                {submitting ? "Generowanie..." : "Wygeneruj podgląd i zasymuluj wysłanie"}
+                {submitting ? "Generowanie..." : "Wygeneruj gotowy dokument do druku / PDF"}
               </button>
 
               {error && (
@@ -412,34 +485,41 @@ export default function DocumentsPage() {
             </form>
           </div>
 
+          {/* Podgląd dokumentu w stylu oficjalnego arkusza A4 */}
           {submission && (
-            <div className="rounded-xl border border-emerald-200 bg-white p-5 shadow-xs dark:border-emerald-800/60 dark:bg-[#111c17]">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-xs font-bold text-emerald-800 dark:text-emerald-300">
-                  {submission.status} ({submission.reference_number})
-                </p>
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-emerald-950 dark:bg-[#111c17]">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-3 dark:border-slate-800">
+                <div>
+                  <p className="text-xs font-bold text-[#007834] dark:text-emerald-400">
+                    {submission.status}
+                  </p>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Nr roboczy: {submission.reference_number}
+                  </p>
+                </div>
                 <div className="flex gap-2">
                   <button
                     type="button"
                     onClick={() => window.print()}
-                    className="inline-flex items-center gap-1 rounded border border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-[#1e3328]"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-[#1e3328]"
                   >
                     <Printer className="h-3.5 w-3.5" />
-                    Drukuj / PDF
+                    Drukuj / Zapisz PDF
                   </button>
                   <button
                     type="button"
-                    onClick={handleDownloadTxt}
-                    className="inline-flex items-center gap-1 rounded bg-[#007834] px-2.5 py-1 text-xs font-semibold text-white hover:bg-[#005a27]"
+                    onClick={handleDownloadDoc}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-[#007834] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#005a27]"
                   >
                     <Download className="h-3.5 w-3.5" />
-                    Pobierz .txt
+                    Pobierz
                   </button>
                 </div>
               </div>
-              <pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap rounded-lg border border-slate-200 bg-slate-50 p-4 font-mono text-xs text-slate-800 dark:border-slate-700 dark:bg-[#0e1914] dark:text-slate-200">
-                {submission.generated_document_text}
-              </pre>
+
+              <div className="mt-4 rounded-xl border border-slate-300 bg-white p-6 font-serif text-[13px] leading-relaxed text-slate-900 shadow-inner">
+                <pre className="whitespace-pre-wrap font-serif">{submission.generated_document_text}</pre>
+              </div>
             </div>
           )}
         </section>

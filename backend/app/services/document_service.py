@@ -135,6 +135,7 @@ def simulate_application_submission(
     from app.services.parameter_store import parameter_store
 
     p = params or parameter_store.get()
+    today_str = date.today().isoformat()
     now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     prefix_map = {
         ApplicationType.LEAVE_EMPLOYER: "URLOP",
@@ -144,8 +145,7 @@ def simulate_application_submission(
         ApplicationType.ZAM_ZUS: "ZUS-ZAM",
         ApplicationType.USC_BIRTH_CERTIFICATE: "USC-AKT",
     }
-    prefix = prefix_map.get(req.application_type, "WNIOSEK")
-    ref = f"{prefix}-SIM-{uuid.uuid4().hex[:8].upper()}"
+    ref = f"{prefix_map.get(req.application_type, 'WNIOSEK')}-{uuid.uuid4().hex[:8].upper()}"
 
     deadline_21: str | None = None
     if req.child_birth_date:
@@ -155,52 +155,120 @@ def simulate_application_submission(
         except ValueError:
             deadline_21 = None
 
-    title_map = {
-        ApplicationType.LEAVE_EMPLOYER: "WNIOSEK O UDZIELENIE URLOPU MACIERZYŃSKIEGO I RODZICIELSKIEGO",
-        ApplicationType.LEAVE_SUPPLEMENTARY: "WNIOSEK O UDZIELENIE UZUPEŁNIAJĄCEGO URLOPU MACIERZYŃSKIEGO (art. 180² KP)",
-        ApplicationType.LEAVE_RESIGNATION: "WNIOSEK O REZYGNACJĘ Z CZĘŚCI URLOPU MACIERZYŃSKIEGO / RODZICIELSKIEGO",
-        ApplicationType.LEAVE_WORK_COMBINATION: "WNIOSEK O ŁĄCZENIE URLOPU RODZICIELSKIEGO Z WYKONYWANIEM PRACY (art. 182¹ᵉ KP)",
-        ApplicationType.ZAM_ZUS: "WNIOSEK O ZASIŁEK MACIERZYŃSKI (FORMULARZ ZAM)",
-        ApplicationType.USC_BIRTH_CERTIFICATE: "WNIOSEK O WYDANIE ODPISU AKTU URODZENIA (USC)",
-    }
+    variant_desc = (
+        f"{p.combined_21_days_rate*100:.1f}% podstawy wymiaru przez cały okres (art. 30a i art. 31 ust. 3 ustawy zasiłkowej)"
+        if req.payment_variant == PaymentVariant.COMBINED_81_5
+        else f"{p.maternity_rate_standard*100:.0f}% za urlop macierzyński oraz {p.parental_rate_standard*100:.0f}% za urlop rodzicielski (art. 31 ust. 1–2 ustawy zasiłkowej)"
+    )
+
+    period_txt = f"od dnia {req.leave_start_date or '............'} do dnia {req.leave_end_date or '............'}"
+    birth_txt = req.child_birth_date or "............"
+
+    if req.application_type == ApplicationType.LEAVE_EMPLOYER:
+        title = "WNIOSEK O UDZIELENIE URLOPU MACIERZYŃSKIEGO I URLOPU RODZICIELSKIEGO"
+        legal_basis = "art. 180 § 1, art. 182¹ᵃ oraz art. 182¹ᵈ Kodeksu pracy; Rozporządzenie MRPiPS z dnia 11 marca 2025 r. (Dz.U. z 2025 r. poz. 322)"
+        body = (
+            f"Na podstawie {legal_basis} zwracam się z wnioskiem o udzielenie mi urlopu macierzyńskiego oraz bezpośrednio po nim urlopu rodzicielskiego "
+            f"z tytułu urodzenia dziecka w dniu {birth_txt}, w okresie {period_txt} "
+            f"(planowana liczba części urlopu rodzicielskiego: {req.leave_parts_count or 1}, maksymalnie {p.parental_max_parts}).\n\n"
+            f"Jednocześnie wnioskuję o wypłacanie zasiłku macierzyńskiego w wariancie: {variant_desc}."
+        )
+        attachments = [
+            "1. Odpis skrócony aktu urodzenia dziecka (kopia).",
+            "2. Oświadczenie o braku zamiaru korzystania przez drugiego z rodziców z urlopu rodzicielskiego w tym samym okresie (jeśli dotyczy).",
+        ]
+    elif req.application_type == ApplicationType.LEAVE_SUPPLEMENTARY:
+        title = "WNIOSEK O UDZIELENIE UZUPEŁNIAJĄCEGO URLOPU MACIERZYŃSKIEGO"
+        legal_basis = "art. 180² Kodeksu pracy; Rozporządzenie MRPiPS z dnia 11 marca 2025 r. (Dz.U. z 2025 r. poz. 322)"
+        body = (
+            f"Na podstawie {legal_basis} wnoszę o udzielenie uzupełniającego urlopu macierzyńskiego bezpośrednio po zakończeniu urlopu macierzyńskiego, "
+            f"w okresie {period_txt}, w związku z pobytem dziecka (ur. {birth_txt}) w szpitalu "
+            f"w okresie od {req.hospitalization_from or '............'} do {req.hospitalization_to or '............'}.\n\n"
+            "Urlop jest udzielany jednorazowo i płatny w wysokości 100% podstawy wymiaru zasiłku."
+        )
+        attachments = [
+            "1. Zaświadczenie wydane przez szpital zawierające informacje o tygodniu ciąży, masie urodzeniowej oraz okresie pobytu dziecka w szpitalu.",
+            "2. Oświadczenie o braku zamiaru korzystania z uzupełniającego urlopu macierzyńskiego przez drugiego rodzica.",
+        ]
+    elif req.application_type == ApplicationType.LEAVE_WORK_COMBINATION:
+        title = "WNIOSEK O ŁĄCZENIE URLOPU RODZICIELSKIEGO Z WYKONYWANIEM PRACY"
+        legal_basis = "art. 182¹ᵉ oraz art. 182¹ᶠ Kodeksu pracy; § 19 Rozporządzenia MRPiPS z dnia 11 marca 2025 r. (Dz.U. z 2025 r. poz. 322)"
+        body = (
+            f"Na podstawie {legal_basis} wnoszę o umożliwienie łączenia korzystania z urlopu rodzicielskiego (na dziecko ur. {birth_txt}) "
+            f"z wykonywaniem pracy u pracodawcy udzielającego urlopu w wymiarze {req.work_fte_fraction or 0.5} etatu (nie wyższym niż 1/2 pełnego wymiaru czasu pracy), "
+            f"w okresie {period_txt}.\n\n"
+            "Wnoszę o proporcjonalne wydłużenie wymiaru urlopu rodzicielskiego zgodnie z art. 182¹ᶠ Kodeksu pracy oraz odpowiednie ustalenie wysokości zasiłku macierzyńskiego."
+        )
+        attachments = [
+            "1. Propozycja harmonogramu czasu pracy w okresie łączenia urlopu z pracą (opcjonalnie).",
+        ]
+    elif req.application_type == ApplicationType.LEAVE_RESIGNATION:
+        title = "WNIOSEK W SPRAWIE REZYGNACJI Z POZOSTAŁEJ CZĘŚCI URLOPU MACIERZYŃSKIEGO"
+        legal_basis = "art. 180 § 4 Kodeksu pracy; § 3 Rozporządzenia MRPiPS z dnia 11 marca 2025 r. (Dz.U. z 2025 r. poz. 322)"
+        body = (
+            f"Na podstawie {legal_basis} informuję o rezygnacji z pozostałej części urlopu macierzyńskiego (po wykorzystaniu po porodzie co najmniej 14 tygodni) "
+            f"i deklaruję powrót do pracy z dniem {req.resignation_date or '............'}.\n\n"
+            "Pozostałą część urlopu macierzyńskiego przejmie ojciec wychowujący dziecko bezpośrednio po zakończeniu mojego urlopu."
+        )
+        attachments = [
+            "1. Kopia wniosku pracownika – ojca wychowującego dziecko o udzielenie pozostałej części urlopu macierzyńskiego (albo kopia oświadczenia ubezpieczonego ojca o przerwaniu działalności zarobkowej).",
+        ]
+    elif req.application_type == ApplicationType.ZAM_ZUS:
+        title = "WNIOSEK O ZASIŁEK MACIERZYŃSKI — FORMULARZ ZUS ZAM"
+        legal_basis = "art. 29–31 ustawy z dnia 25 czerwca 1999 r. o świadczeniach pieniężnych z ubezpieczenia społecznego w razie choroby i macierzyństwa (Dz.U. z 2026 r. poz. 854)"
+        body = (
+            f"Na podstawie {legal_basis} wnoszę o ustalenie prawa i wypłatę zasiłku macierzyńskiego za okres {period_txt} "
+            f"z tytułu urodzenia dziecka w dniu {birth_txt}.\n\n"
+            f"Wybrany wariant wypłaty: {variant_desc}.\n"
+            "Uwaga: Od 24 października 2026 r. formularz ZAM zastępuje dotychczasowe formularze ZUR i ZAO i jest składany elektronicznie przez PUE/eZUS lub w placówce ZUS."
+        )
+        attachments = [
+            "1. Odpis skrócony aktu urodzenia dziecka.",
+            "2. Zaświadczenie płatnika składek Z-3 (pracownik) lub Z-3a (zleceniobiorca) — jeśli płatnik nie jest uprawniony do wypłaty zasiłków.",
+            "3. Zaświadczenie 'Za życiem' lub zaświadczenie szpitalne — jeśli dotyczy.",
+        ]
+    else:
+        title = "WNIOSEK O WYDANIE ODPISU AKTU URODZENIA (REJESTR STANU CYWILNEGO)"
+        legal_basis = "art. 44–45 ustawy z dnia 28 listopada 2014 r. – Prawo o aktach stanu cywilnego"
+        body = (
+            f"Na podstawie {legal_basis} wnoszę o wydanie odpisu skróconego aktu urodzenia dziecka urodzonego w dniu {birth_txt}, "
+            "niezbędnego do przedłożenia pracodawcy / Zakładowi Ubezpieczeń Społecznych w celu ustalenia prawa do urlopu i zasiłku macierzyńskiego.\n\n"
+            "Wniosek o odpis w sprawach ubezpieczeń społecznych jest zwolniony z opłaty skarbowej (art. 2 ust. 1 pkt 1 lit. b ustawy o opłacie skarbowej)."
+        )
+        attachments = [
+            "1. Dokument tożsamości (lub podpis Profilem Zaufanym / e-Dowodem przez gov.pl).",
+        ]
 
     lines = [
-        f"Nr referencyjny (symulacja): {ref}",
-        f"Data wygenerowania: {now_iso}",
+        f"                                                  Miejscowość, dnia {today_str}",
         "",
-        f"Wnioskodawca: {req.applicant_name} (PESEL: {req.pesel_masked})",
-        f"Adresat: {req.recipient}",
+        "WNIOSKODAWCA:",
+        f"  {req.applicant_name}",
+        f"  PESEL: {req.pesel_masked}",
         "",
-        f"=== {title_map[req.application_type]} ===",
+        "ADRESAT:",
+        f"  {req.recipient}",
         "",
+        title,
+        "",
+        body,
     ]
-    if req.child_birth_date:
-        lines.append(f"Data urodzenia dziecka: {req.child_birth_date}")
-    if deadline_21:
-        lines.append(
-            f"Termin {p.combined_application_deadline_days} dni na wniosek/deklarację o 81,5%: {deadline_21}"
-        )
-    if req.leave_start_date or req.leave_end_date:
-        lines.append(f"Wnioskowany okres urlopu/zasiłku: od {req.leave_start_date or '—'} do {req.leave_end_date or '—'}")
-    if req.leave_parts_count and req.application_type in (ApplicationType.LEAVE_EMPLOYER, ApplicationType.ZAM_ZUS):
-        lines.append(f"Planowana liczba części urlopu rodzicielskiego: {req.leave_parts_count} (maks. {p.parental_max_parts})")
-    if req.payment_variant and req.application_type in (ApplicationType.LEAVE_EMPLOYER, ApplicationType.ZAM_ZUS):
-        variant_txt = (
-            f"{p.combined_21_days_rate*100:.1f}% za cały okres (wniosek w {p.combined_application_deadline_days} dni)"
-            if req.payment_variant == PaymentVariant.COMBINED_81_5
-            else f"{p.maternity_rate_standard*100:.0f}% macierzyński + {p.parental_rate_standard*100:.0f}% rodzicielski"
-        )
-        lines.append(f"Wybrany wariant wypłaty zasiłku: {variant_txt}")
-    if req.application_type == ApplicationType.LEAVE_WORK_COMBINATION and req.work_fte_fraction:
-        lines.append(f"Wymiar czasu pracy podczas urlopu rodzicielskiego: {req.work_fte_fraction} etatu (maks. 0.5)")
-    if req.application_type == ApplicationType.LEAVE_SUPPLEMENTARY and (req.hospitalization_from or req.hospitalization_to):
-        lines.append(f"Okres hospitalizacji dziecka: od {req.hospitalization_from or '—'} do {req.hospitalization_to or '—'}")
-    if req.application_type == ApplicationType.LEAVE_RESIGNATION and req.resignation_date:
-        lines.append(f"Data rezygnacji z dalszej części urlopu: {req.resignation_date}")
+    if deadline_21 and req.application_type in (ApplicationType.LEAVE_EMPLOYER, ApplicationType.ZAM_ZUS):
+        lines.extend(["", f"Termin 21 dni po porodzie na wniosek/deklarację o 81,5%: {deadline_21}."])
     if req.notes:
-        lines.append(f"Uwagi dodatkowe: {req.notes}")
-
-    lines.extend(["", "Podpis wnioskodawcy (symulacja): ________________________"])
+        lines.extend(["", f"Informacje dodatkowe: {req.notes}"])
+    lines.extend(
+        [
+            "",
+            "ZAŁĄCZNIKI:",
+            *[f"  {a}" for a in attachments],
+            "",
+            f"Nr roboczy dokumentu: {ref}",
+            "",
+            "                                                  ................................................",
+            "                                                     (czytelny podpis wnioskodawcy)",
+        ]
+    )
 
     return ApplicationSubmissionResponse(
         reference_number=ref,
@@ -208,7 +276,7 @@ def simulate_application_submission(
         recipient=req.recipient,
         submitted_at=now_iso,
         deadline_21_days=deadline_21,
-        status="Wygenerowano i zasymulowano wysłanie dokumentu",
-        summary=f"Przygotowano dokument ({title_map[req.application_type]}) dla {req.applicant_name} do: {req.recipient}.",
+        status="Wygenerowano wzór dokumentu zgodny z przepisami 2025/2026",
+        summary=f"Przygotowano {title} dla {req.applicant_name} (adresat: {req.recipient}).",
         generated_document_text="\n".join(lines),
     )
