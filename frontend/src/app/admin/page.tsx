@@ -224,7 +224,7 @@ export default function AdminPanelPage() {
               type="button"
               disabled={saving}
               onClick={handleReset}
-              className="rounded-lg border border-slate-300 dark:border-slate-700 px-4 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-[#16241d] dark:bg-[#16241d]"
+              className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-[#111c17] dark:text-slate-300 dark:hover:bg-[#1e3328]"
             >
               Przywróć domyślne (2026)
             </button>

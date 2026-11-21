@@ -60,7 +60,7 @@ export default function PueZusSimulationPage() {
             <button
               type="button"
               onClick={logout}
-              className="rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-[#16241d] dark:bg-[#16241d]"
+              className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-[#111c17] dark:text-slate-300 dark:hover:bg-[#1e3328]"
             >
               Wyloguj ({user.full_name})
             </button>
@@ -79,7 +79,7 @@ export default function PueZusSimulationPage() {
                 className={`rounded-xl border p-4 text-left transition ${
                   active
                     ? "border-[#007834] bg-[#e6f4ec] dark:bg-[#007834]/20 ring-1 ring-[#007834]"
-                    : "border-slate-200 dark:border-emerald-950 hover:border-[#007834]/60 hover:bg-slate-50 dark:hover:bg-[#16241d] dark:bg-[#16241d]"
+                    : "border-slate-200 hover:border-[#007834]/60 hover:bg-slate-50 dark:border-emerald-950 dark:bg-[#111c17] dark:hover:border-emerald-700 dark:hover:bg-[#1e3328]"
                 }`}
               >
                 <p className="text-sm font-bold text-slate-900 dark:text-slate-100">{p.full_name}</p>
