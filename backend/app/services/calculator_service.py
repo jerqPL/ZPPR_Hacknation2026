@@ -848,16 +848,16 @@ def calculate_integrated_maternity(
     ) -> tuple[float, float]:
         nonlocal top_up_applied
         effective_fraction = 1.0 - fte_work
-        raw_full_monthly = round(base * rate, 2)
+        raw_full_monthly = _round_pln(base * rate)
         if raw_full_monthly < min_monthly_floor and base >= 0:
             full_monthly = min_monthly_floor
             if track_top_up:
                 top_up_applied = True
         else:
             full_monthly = raw_full_monthly
-        monthly = round(full_monthly * effective_fraction, 2)
-        daily = round(monthly / 30.0, 2)
-        total = round(daily * days, 2)
+        monthly = _round_pln(full_monthly * effective_fraction)
+        daily = _round_pln(monthly / 30.0)
+        total = _round_pln(daily * days)
         return monthly, total
 
     def _append_parental_segment(

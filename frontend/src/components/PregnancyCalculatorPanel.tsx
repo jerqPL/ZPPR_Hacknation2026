@@ -315,15 +315,15 @@ export function PregnancyCalculatorPanel() {
   return (
     <div>
       {prefillBanner && (
-        <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-950 dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-200">
+        <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-200">
           <p className="font-bold">Wczytano dane z dokumentu: {prefillBanner.sourceLabel}</p>
           {prefillBanner.missingFields.length > 0 ? (
-            <p className="mt-1">
+            <p className="mt-1 leading-relaxed">
               Pola nieobecne w dokumencie pozostawiono puste — uzupełnij je przed obliczeniem:{" "}
               <strong>{prefillBanner.missingFields.join(", ")}</strong>.
             </p>
           ) : (
-            <p className="mt-1">
+            <p className="mt-1 leading-relaxed">
               Wszystkie wymagane pola zostały odczytane i wstępnie przeliczone. Możesz je skorygować poniżej.
             </p>
           )}
@@ -335,12 +335,12 @@ export function PregnancyCalculatorPanel() {
           onSubmit={handleCalculate}
           className="space-y-4 rounded-xl border border-slate-200 dark:border-emerald-950 bg-white dark:bg-[#111c17] p-6 shadow-xs lg:col-span-5"
         >
-          <h2 className="text-base font-bold text-slate-900 dark:text-slate-100">
+          <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">
             Twoja sytuacja ubezpieczeniowa
           </h2>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300">
               <InfoTooltip
                 label="Tytuł ubezpieczenia"
                 tooltip="Na umowie o pracę ubezpieczenie chorobowe jest obowiązkowe (okres wyczekiwania 30 dni). Na zleceniu i JDG jest dobrowolne (okres wyczekiwania 90 dni)."
@@ -349,7 +349,7 @@ export function PregnancyCalculatorPanel() {
             <select
               value={insuranceTitle}
               onChange={(e) => setInsuranceTitle(e.target.value as InsuranceTitle | "")}
-              className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
+              className="mt-1.5 w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
             >
               <option value="">— Wybierz tytuł ubezpieczenia —</option>
               <option value="uop">Umowa o pracę (obowiązkowe chorobowe)</option>
@@ -373,7 +373,7 @@ export function PregnancyCalculatorPanel() {
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="flex flex-col justify-between">
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300">
                 <InfoTooltip
                   label="Okres ubezpieczenia (dni)"
                   tooltip="Liczba dni nieprzerwanego ubezpieczenia chorobowego (wlicza się poprzednie okresy, jeśli przerwa nie przekroczyła 30 dni — art. 4 ust. 2 ustawy zasiłkowej)."
@@ -385,11 +385,11 @@ export function PregnancyCalculatorPanel() {
                 placeholder="Wpisz liczbę dni"
                 value={insuranceDays}
                 onChange={(e) => setInsuranceDays(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
+                className="mt-1.5 w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
               />
             </div>
             <div className="flex flex-col justify-between">
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300">
                 <InfoTooltip
                   label="Wynagrodzenie / podstawa brutto (zł)"
                   tooltip="Przeciętne miesięczne wynagrodzenie lub zadeklarowana podstawa składek brutto z 12 miesięcy przed niezdolnością do pracy."
@@ -402,13 +402,13 @@ export function PregnancyCalculatorPanel() {
                 placeholder="Wpisz kwotę brutto"
                 value={grossSalary}
                 onChange={(e) => setGrossSalary(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
+                className="mt-1.5 w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300">
               <InfoTooltip
                 label="Zwolnienie z okresu wyczekiwania (art. 4 ust. 3 ustawy zasiłkowej)"
                 tooltip="10-letni staż obowiązkowego ubezpieczenia (pkt 3) zwalnia wyłącznie na umowie o pracę. Absolwenci w ciągu 90 dni (pkt 1) i wypadek w drodze do/z pracy (pkt 2) dają prawo od 1. dnia także przy JDG i zleceniu."
@@ -419,7 +419,7 @@ export function PregnancyCalculatorPanel() {
               onChange={(e) =>
                 setWaitingExemptionReason(e.target.value as WaitingPeriodExemptionReason)
               }
-              className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-xs"
+              className="mt-1.5 w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
             >
               <option value="none">Brak zwolnienia (standardowo 30 dni UoP / 90 dni dobrowolne)</option>
               <option value="mandatory_10_years">
@@ -437,7 +437,7 @@ export function PregnancyCalculatorPanel() {
           {insuranceTitle === "uop" && (
             <div className="grid gap-3 sm:grid-cols-2 items-center">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300">
                   <InfoTooltip
                     label="Wymiar etatu (art. 45)"
                     tooltip={`Minimalna podstawa wymiaru zasiłku pracownika (${minFullBase} zł dla pełnego etatu w ${paramsYear} r.) ulega proporcjonalnemu zmniejszeniu przy niepełnym etacie (np. 0.5 etatu = ${minHalfBase} zł).`}
@@ -450,10 +450,10 @@ export function PregnancyCalculatorPanel() {
                   step="any"
                   value={fteFraction}
                   onChange={(e) => setFteFraction(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
+                  className="mt-1.5 w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
                 />
               </div>
-              <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 pt-4">
+              <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300 pt-5">
                 <input
                   type="checkbox"
                   checked={ageOver50}
@@ -469,7 +469,7 @@ export function PregnancyCalculatorPanel() {
           )}
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300">
               <InfoTooltip
                 label="Indywidualna podstawa wymiaru zasiłku (opcjonalnie, zł po -13,71%)"
                 tooltip="Jeśli znasz swoją dokładną indywidualną podstawę wymiaru zasiłku (np. z formularza Z-3/Z-3a lub Kreatora podstawy wg art. 48a dla JDG), wpisz ją tutaj."
@@ -482,13 +482,13 @@ export function PregnancyCalculatorPanel() {
               placeholder="Pozostaw puste, aby wyliczyć automatycznie z kwoty brutto"
               value={customBase}
               onChange={(e) => setCustomBase(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
+              className="mt-1.5 w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
             />
           </div>
 
           {(insuranceTitle === "uop" || insuranceTitle === "zlecenie") && (
             <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300">
                 Liczba ubezpieczonych u płatnika (stan na 30.11)
               </label>
               <input
@@ -497,14 +497,14 @@ export function PregnancyCalculatorPanel() {
                 placeholder="Wpisz liczbę ubezpieczonych"
                 value={employerCount}
                 onChange={(e) => setEmployerCount(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
+                className="mt-1.5 w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
               />
             </div>
           )}
 
           {insuranceTitle === "jdg" && (
             <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300">
                 <InfoTooltip
                   label="Zaległość składkowa ZUS (zł)"
                   tooltip={`Art. 2a ustawy zasiłkowej: zadłużenie przekraczające 1% minimalnego wynagrodzenia (${debtThreshold} zł w ${paramsYear} r.) wstrzymuje wypłatę zasiłku na JDG do czasu spłaty (przedawnienie po ${legalParams?.claim_limitation_months ?? 6} miesiącach).`}
@@ -516,7 +516,7 @@ export function PregnancyCalculatorPanel() {
                 step="any"
                 value={contributionDebt}
                 onChange={(e) => setContributionDebt(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
+                className="mt-1.5 w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
               />
             </div>
           )}
@@ -531,7 +531,7 @@ export function PregnancyCalculatorPanel() {
             Zaświadczenie lekarskie e-ZLA zawiera kod literowy „B” (ciąża = 100%)
           </label>
 
-          <div className="rounded-lg border border-slate-200 dark:border-emerald-950 bg-slate-50 dark:bg-[#16241d] p-3">
+          <div className="rounded-lg border border-slate-200 dark:border-emerald-950 bg-slate-50 dark:bg-[#16241d] p-3.5">
             <label className="flex items-center gap-2 text-sm font-medium text-slate-800 dark:text-slate-200">
               <input
                 type="checkbox"
@@ -548,7 +548,7 @@ export function PregnancyCalculatorPanel() {
               <select
                 value={terminationReason}
                 onChange={(e) => setTerminationReason(e.target.value)}
-                className="mt-2 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#111c17] px-3 py-2 text-xs"
+                className="mt-2.5 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#111c17] px-3 py-2 text-sm"
               >
                 <option value="bankruptcy_liquidation">
                   Upadłość lub likwidacja pracodawcy (art. 30 ust. 3 — do dnia porodu)
@@ -569,44 +569,46 @@ export function PregnancyCalculatorPanel() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-lg bg-[#007834] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#005a27] disabled:opacity-50"
+            className="w-full rounded-lg bg-[#007834] px-4 py-3 text-base font-semibold text-white transition hover:bg-[#005a27] disabled:opacity-50"
           >
             {loading ? "Sprawdzanie..." : "Sprawdź uprawnienia i oblicz zasiłek"}
           </button>
 
-          {error && <p className="text-xs text-red-600">{error}</p>}
+          {error && <p className="text-sm font-medium text-red-600">{error}</p>}
         </form>
 
         <div className="space-y-4 lg:col-span-7">
           {result ? (
             <div className="rounded-xl border border-slate-200 dark:border-emerald-950 bg-white dark:bg-[#111c17] p-6 shadow-xs">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">
+                <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">
                   Wynik analizy
                 </h2>
                 {(() => {
                   const badge = getBadgeStyleAndLabel(result);
                   return (
-                    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${badge.cls}`}>
+                    <span className={`rounded-full px-3.5 py-1 text-xs font-semibold ${badge.cls}`}>
                       {badge.label}
                     </span>
                   );
                 })()}
               </div>
 
-              <p className="mt-3 text-sm text-slate-700 dark:text-slate-300">{result.summary}</p>
+              <p className="mt-3 text-sm leading-relaxed text-slate-700 dark:text-slate-300">
+                {result.summary}
+              </p>
 
               <div className="mt-5 grid gap-4 sm:grid-cols-3">
                 <div className="rounded-lg bg-slate-50 dark:bg-[#16241d] p-4">
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                  <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
                     Podstawa wymiaru (mies.)
                   </p>
-                  <p className="mt-1 text-lg font-bold text-slate-900 dark:text-slate-100">
+                  <p className="mt-1 text-xl font-bold text-slate-900 dark:text-slate-100">
                     {result.benefit_base_monthly.toFixed(2)} zł
                   </p>
                 </div>
                 <div className="rounded-lg bg-[#e6f4ec] dark:bg-[#007834]/20 p-4">
-                  <p className="text-xs text-[#005a27] dark:text-emerald-300">
+                  <p className="text-xs font-medium text-[#005a27] dark:text-emerald-300">
                     {result.eligible_post_birth_maternity_art30 && !result.eligible_maternity_equivalent
                       ? `Prognoza PO porodzie (${result.benefit_rate_percent}%)`
                       : !result.waiting_period_met && result.benefit_base_monthly > 0
@@ -615,36 +617,40 @@ export function PregnancyCalculatorPanel() {
                       ? `Po spłacie zadłużenia (${result.benefit_rate_percent}%)`
                       : `Zasiłek miesięczny (${result.benefit_rate_percent}%)`}
                   </p>
-                  <p className="mt-1 text-lg font-bold text-[#005a27] dark:text-emerald-300">
+                  <p className="mt-1 text-xl font-bold text-[#005a27] dark:text-emerald-300">
                     {result.monthly_benefit_gross.toFixed(2)} zł
                   </p>
                 </div>
                 <div className="rounded-lg bg-slate-50 dark:bg-[#16241d] p-4">
-                  <p className="text-xs text-slate-500 dark:text-slate-400">Stawka dzienna (1/30)</p>
-                  <p className="mt-1 text-lg font-bold text-slate-900 dark:text-slate-100">
+                  <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                    Stawka dzienna (1/30)
+                  </p>
+                  <p className="mt-1 text-xl font-bold text-slate-900 dark:text-slate-100">
                     {result.daily_benefit_gross.toFixed(2)} zł
                   </p>
                 </div>
               </div>
 
               {result.benefit_base_explanation && (
-                <p className="mt-3 rounded bg-slate-50 dark:bg-[#16241d] p-2.5 text-xs text-slate-600 dark:text-slate-300">
+                <p className="mt-4 rounded-lg bg-slate-50 dark:bg-[#16241d] p-3 text-sm leading-relaxed text-slate-600 dark:text-slate-300">
                   <strong>Ustalenie podstawy wymiaru:</strong> {result.benefit_base_explanation}
                 </p>
               )}
 
-              <dl className="mt-5 grid gap-2 text-xs text-slate-700 dark:text-slate-300 sm:grid-cols-2">
-                <div className="rounded border border-slate-100 dark:border-slate-800 p-2.5">
-                  <dt className="text-slate-500 dark:text-slate-400">Kto wypłaca zasiłek</dt>
-                  <dd className="font-semibold text-slate-900 dark:text-slate-100">
+              <dl className="mt-5 grid gap-3 text-sm text-slate-700 dark:text-slate-300 sm:grid-cols-2">
+                <div className="rounded-lg border border-slate-100 dark:border-slate-800 p-3">
+                  <dt className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                    Kto wypłaca zasiłek
+                  </dt>
+                  <dd className="mt-0.5 font-semibold text-slate-900 dark:text-slate-100">
                     {result.payer}
                   </dd>
                 </div>
-                <div className="rounded border border-slate-100 dark:border-slate-800 p-2.5">
-                  <dt className="text-slate-500 dark:text-slate-400">
+                <div className="rounded-lg border border-slate-100 dark:border-slate-800 p-3">
+                  <dt className="text-xs font-medium text-slate-500 dark:text-slate-400">
                     Okres świadczenia / finansowanie
                   </dt>
-                  <dd className="font-semibold text-slate-900 dark:text-slate-100">
+                  <dd className="mt-0.5 font-semibold text-slate-900 dark:text-slate-100">
                     {result.benefit_duration_label
                       ? result.benefit_duration_label
                       : result.max_benefit_days === 0
@@ -658,10 +664,10 @@ export function PregnancyCalculatorPanel() {
 
               {result.warnings.length > 0 && (
                 <div className="mt-5 rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800/60 dark:bg-amber-950/40 p-4">
-                  <p className="text-xs font-bold text-amber-900 dark:text-amber-200">
+                  <p className="text-sm font-bold text-amber-900 dark:text-amber-200">
                     Ważne uwagi prawne
                   </p>
-                  <ul className="mt-1 list-disc space-y-1 pl-4 text-xs text-amber-900 dark:text-amber-200">
+                  <ul className="mt-1.5 list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-amber-900 dark:text-amber-200">
                     {result.warnings.map((w, idx) => (
                       <li key={idx}>{w}</li>
                     ))}
@@ -670,38 +676,38 @@ export function PregnancyCalculatorPanel() {
               )}
             </div>
           ) : (
-            <div className="rounded-xl border border-dashed border-slate-300 dark:border-slate-700 bg-white dark:bg-[#111c17] p-8 text-center text-sm text-slate-500 dark:text-slate-400">
+            <div className="rounded-xl border border-dashed border-slate-300 dark:border-slate-700 bg-white dark:bg-[#111c17] p-8 text-center text-sm leading-relaxed text-slate-500 dark:text-slate-400">
               Uzupełnij formularz po lewej i kliknij „Sprawdź uprawnienia”, aby zobaczyć wyliczenie
               zasiłku chorobowego, świadczenia rehabilitacyjnego oraz świadczeń po ustaniu
               zatrudnienia w ciąży.
             </div>
           )}
 
-          <div className="rounded-xl border border-slate-200 dark:border-emerald-950 bg-white dark:bg-[#111c17] p-5 text-xs text-slate-600 dark:text-slate-400">
-            <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+          <div className="rounded-xl border border-slate-200 dark:border-emerald-950 bg-white dark:bg-[#111c17] p-5 text-sm text-slate-600 dark:text-slate-400">
+            <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
               Świadczenie rehabilitacyjne w okresie ciąży (art. 18–19 ustawy zasiłkowej)
             </h3>
-            <p className="mt-1 leading-relaxed">
+            <p className="mt-1.5 leading-relaxed">
               Jeśli po wyczerpaniu {pregMaxDays} dni okresu zasiłkowego kobieta nadal jest niezdolna do pracy,
               a dalsze leczenie lub rehabilitacja rokują odzyskanie zdolności do pracy, przysługuje
               jej świadczenie rehabilitacyjne przez okres do 12 miesięcy ({legalParams?.rehabilitation_benefit_max_days ?? 360} dni). W okresie ciąży
               wynosi ono <strong>100% zwaloryzowanej podstawy wymiaru zasiłku chorobowego</strong>.
             </p>
             {result && result.eligible_sickness_benefit && result.rehabilitation_max_days > 0 && (
-              <div className="mt-3 grid gap-2 rounded-lg bg-slate-50 dark:bg-[#16241d] p-3 sm:grid-cols-2">
+              <div className="mt-3.5 grid gap-3 rounded-lg bg-slate-50 dark:bg-[#16241d] p-3.5 sm:grid-cols-2">
                 <div>
-                  <span className="text-slate-500 dark:text-slate-400">
+                  <span className="text-xs text-slate-500 dark:text-slate-400">
                     Szacowane świadczenie rehabilitacyjne (100% mies., przed waloryzacją):
                   </span>
-                  <p className="text-sm font-bold text-[#005a27] dark:text-emerald-300">
+                  <p className="mt-0.5 text-base font-bold text-[#005a27] dark:text-emerald-300">
                     {result.rehabilitation_monthly_gross.toFixed(2)} zł
                   </p>
                 </div>
                 <div>
-                  <span className="text-slate-500 dark:text-slate-400">
+                  <span className="text-xs text-slate-500 dark:text-slate-400">
                     Stawka dzienna (maks. {result.rehabilitation_max_days} dni):
                   </span>
-                  <p className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                  <p className="mt-0.5 text-base font-bold text-slate-900 dark:text-slate-100">
                     {result.rehabilitation_daily_gross.toFixed(2)} zł / dzień
                   </p>
                 </div>
