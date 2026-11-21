@@ -112,9 +112,9 @@ export default function DocumentsPage() {
 
   const deadline21Preview = useMemo(() => {
     if (!childBirthDate) return null;
-    const d = new Date(`${childBirthDate}T00:00:00`);
+    const d = new Date(`${childBirthDate}T00:00:00Z`);
     if (Number.isNaN(d.getTime())) return null;
-    d.setDate(d.getDate() + deadlineDays);
+    d.setUTCDate(d.getUTCDate() + deadlineDays);
     return d.toISOString().slice(0, 10);
   }, [childBirthDate, deadlineDays]);
 

@@ -22,6 +22,11 @@ def calculate_individual_benefit_base(
     req: IndividualBaseCalculationRequest, params: LegalParameters
 ) -> IndividualBaseCalculationResponse:
     """Kalkulator indywidualnej podstawy wymiaru zasiłku — Art. 36–52 ustawy zasiłkowej."""
+    if req.insurance_title == InsuranceTitle.NONE:
+        raise HTTPException(
+            status_code=422,
+            detail="Osoba niepodlegająca ubezpieczeniu chorobowemu nie ma ustalanej podstawy wymiaru zasiłku — wybierz tytuł ubezpieczenia (UoP, zlecenie lub JDG).",
+        )
     rate = params.employee_social_security_rate
     steps: list[str] = []
     cap_applied = False
@@ -119,14 +124,21 @@ def calculate_individual_benefit_base(
                     )
         else:
             legal_basis = "Art. 48 ust. 1 ustawy zasiłkowej (przeciętny miesięczny przychód z 12 miesięcy na JDG)"
-            base = declared_net
-            steps.append(
-                f"Przeciętna miesięczna podstawa składek z 12 pełnych mies. po odliczeniu {rate*100:.2f}%: {base:.2f} zł."
-            )
-            if 0 < declared_gross < min_gross:
+            if declared_gross <= 0:
+                base = min_net
+                floor_applied = True
                 steps.append(
-                    f"Uwaga: wskazana kwota ({declared_gross:.2f} zł) jest niższa od standardowej najniższej podstawy składek JDG ({min_gross:.2f} zł)."
+                    f"Nie wskazano dodatniej deklarowanej podstawy — przyjęto najniższą podstawę składek JDG po odliczeniu {rate*100:.2f}%: {min_net:.2f} zł."
                 )
+            else:
+                base = declared_net
+                steps.append(
+                    f"Przeciętna miesięczna podstawa składek z 12 pełnych mies. po odliczeniu {rate*100:.2f}%: {base:.2f} zł."
+                )
+                if declared_gross < min_gross:
+                    steps.append(
+                        f"Uwaga: wskazana kwota ({declared_gross:.2f} zł) jest niższa od standardowej najniższej podstawy składek JDG ({min_gross:.2f} zł)."
+                    )
     else:
         is_employee = req.insurance_title == InsuranceTitle.UOP
         legal_basis = (
@@ -759,15 +771,27 @@ def _compute_supplementary_weeks(
         warnings.append(
             "Dla dziecka urodzonego po ukończeniu 37. tygodnia ciąży uzupełniający urlop macierzyński (do 8 tyg.) przysługuje pod warunkiem, że pobyt dziecka w szpitalu trwał co najmniej 2 kolejne dni, a pierwszy z nich przypadał w okresie od 5. do 28. dnia po porodzie (art. 180² § 1 pkt 3 Kodeksu pracy)."
         )
-    if req.scenario in (BenefitScenario.ADOPTION, BenefitScenario.FOSTER):
-        warnings.append(
-            "Uzupełniający urlop macierzyński przy adopcji lub rodzinie zastępczej (art. 183 § 3¹ KP) przysługuje wyłącznie, jeżeli pobyt dziecka w szpitalu miał miejsce po przyjęciu dziecka na wychowanie."
-        )
     cap = (
         params.supplementary_maternity_max_weeks_extreme
         if is_extreme
         else params.supplementary_maternity_max_weeks_standard
     )
+    if req.scenario in (BenefitScenario.ADOPTION, BenefitScenario.FOSTER):
+        if req.child_age_years is not None:
+            age_weeks = req.child_age_years * params.weeks_per_year
+            max_after_placement = max(0, math.ceil(cap - age_weeks - 1e-9))
+            if max_after_placement <= 0:
+                warnings.append(
+                    f"Brak prawa do uzupełniającego urlopu macierzyńskiego (art. 183 § 3¹ w zw. z art. 180² § 1 KP): przy adopcji lub rodzinie zastępczej urlop ten przysługuje wyłącznie za pobyt dziecka w szpitalu po przyjęciu na wychowanie przypadający do upływu {cap}. tygodnia po porodzie."
+                )
+                return 0
+            warnings.append(
+                "Uzupełniający urlop macierzyński przy adopcji lub rodzinie zastępczej (art. 183 § 3¹ KP) przysługuje wyłącznie, jeżeli pobyt dziecka w szpitalu miał miejsce po przyjęciu dziecka na wychowanie."
+            )
+            return min(req.hospitalization_weeks, cap, max_after_placement)
+        warnings.append(
+            "Uzupełniający urlop macierzyński przy adopcji lub rodzinie zastępczej (art. 183 § 3¹ KP) przysługuje wyłącznie, jeżeli pobyt dziecka w szpitalu miał miejsce po przyjęciu dziecka na wychowanie."
+        )
     return min(req.hospitalization_weeks, cap)
 
 
@@ -835,7 +859,7 @@ def calculate_integrated_maternity(
     ) -> None:
         if segment_weeks <= 0:
             return
-        if ext_days > 0 and work_weeks > 0 and fte_val > 0:
+        if work_weeks > 0 and fte_val > 0:
             full_weeks = segment_weeks - work_weeks
             if full_weeks > 0:
                 fl_days = full_weeks * 7
@@ -857,15 +881,23 @@ def calculate_integrated_maternity(
                 comb_days = work_weeks * 7 + ext_days
                 comb_weeks = round(comb_days / 7.0, 2)
                 cw_m, cw_t = _calc_amount_days(base_val, rate_val, comb_days, fte_work=fte_val)
-                note = (
-                    f"Art. 182¹ᶠ § 4 i § 7 KP: łączny okres {_format_days_label(comb_days)} "
-                    f"(w tym wydłużenie {ext_label}, niepełny dzień pominięto); zasiłek pomniejszony proporcjonalnie o {round(fte_val*100, 1)}%."
-                )
+                if ext_days > 0:
+                    comb_label = f"{base_label} łączony z pracą ({fte_val} etatu) + wydłużenie (+{round(ext_days/7.0, 2)} tyg.)"
+                    note = (
+                        f"Art. 182¹ᶠ § 4 i § 7 KP: łączny okres {_format_days_label(comb_days)} "
+                        f"(w tym wydłużenie {ext_label}, niepełny dzień pominięto); zasiłek pomniejszony proporcjonalnie o {round(fte_val*100, 1)}%."
+                    )
+                else:
+                    comb_label = f"{base_label} łączony z pracą ({fte_val} etatu)"
+                    note = (
+                        f"Art. 31 ust. 4a ustawy zasiłkowej i art. 182¹ᶠ § 4 KP: wydłużenie wynosi 0 dni "
+                        f"(niepełny dzień pominięto lub osiągnięto limit wieku/puli); zasiłek pomniejszony proporcjonalnie o {round(fte_val*100, 1)}%."
+                    )
                 if extra_note:
                     note = f"{note} {extra_note}"
                 target_list.append(
                     LeaveBreakdownItem(
-                        label=f"{base_label} łączony z pracą ({fte_val} etatu) + wydłużenie (+{round(ext_days/7.0, 2)} tyg.)",
+                        label=comb_label,
                         parent=parent_label,
                         weeks=comb_weeks,
                         days=comb_days,
@@ -878,6 +910,15 @@ def calculate_integrated_maternity(
             else:
                 cw_days = work_weeks * 7
                 cw_m, cw_t = _calc_amount_days(base_val, rate_val, cw_days, fte_work=fte_val)
+                if ext_days == 0:
+                    cw_note = (
+                        f"Art. 31 ust. 4a ustawy zasiłkowej i art. 182¹ᶠ § 4 KP: wydłużenie wynosi 0 dni "
+                        f"(niepełny dzień pominięto lub osiągnięto limit wieku/puli); zasiłek pomniejszony proporcjonalnie o {round(fte_val*100, 1)}%."
+                    )
+                    if extra_note:
+                        cw_note = f"{cw_note} {extra_note}"
+                else:
+                    cw_note = extra_note
                 target_list.append(
                     LeaveBreakdownItem(
                         label=f"{base_label} łączony z pracą ({fte_val} etatu)",
@@ -887,25 +928,26 @@ def calculate_integrated_maternity(
                         rate_percent=round(rate_val * (1.0 - fte_val) * 100, 2),
                         monthly_gross_pln=cw_m,
                         total_gross_pln=cw_t,
-                        notes=extra_note,
+                        notes=cw_note,
                     )
                 )
-                ex_m, ex_t = _calc_amount_days(base_val, rate_val, ext_days)
-                ex_note = f"Art. 182¹ᶠ § 2 i § 4 KP: wydłużenie {ext_label} (niepełny dzień pominięto)."
-                if extra_note:
-                    ex_note = f"{ex_note} {extra_note}"
-                target_list.append(
-                    LeaveBreakdownItem(
-                        label="Wydłużona część urlopu rodzicielskiego (bez pracy, art. 182¹ᶠ § 2 KP)",
-                        parent=parent_label,
-                        weeks=round(ext_days / 7.0, 2),
-                        days=ext_days,
-                        rate_percent=round(rate_val * 100, 1),
-                        monthly_gross_pln=ex_m,
-                        total_gross_pln=ex_t,
-                        notes=ex_note,
+                if ext_days > 0:
+                    ex_m, ex_t = _calc_amount_days(base_val, rate_val, ext_days)
+                    ex_note = f"Art. 182¹ᶠ § 2 i § 4 KP: wydłużenie {ext_label} (niepełny dzień pominięto)."
+                    if extra_note:
+                        ex_note = f"{ex_note} {extra_note}"
+                    target_list.append(
+                        LeaveBreakdownItem(
+                            label="Wydłużona część urlopu rodzicielskiego (bez pracy, art. 182¹ᶠ § 2 KP)",
+                            parent=parent_label,
+                            weeks=round(ext_days / 7.0, 2),
+                            days=ext_days,
+                            rate_percent=round(rate_val * 100, 1),
+                            monthly_gross_pln=ex_m,
+                            total_gross_pln=ex_t,
+                            notes=ex_note,
+                        )
                     )
-                )
         else:
             seg_days = segment_weeks * 7
             mp_m, mp_t = _calc_amount_days(base_val, rate_val, seg_days)
@@ -1095,7 +1137,7 @@ def calculate_integrated_maternity(
         )
         if req.scenario in (BenefitScenario.ADOPTION, BenefitScenario.FOSTER) and (
             apply_reduced_9_weeks_regime
-            or (weeks_until_age_limit is not None and weeks_until_age_limit <= params.adoption_foster_min_maternity_weeks)
+            or (weeks_until_age_limit is not None and weeks_until_age_limit < params.adoption_foster_min_maternity_weeks)
         ):
             apply_reduced_9_weeks_regime = True
             parental_pool = (
@@ -1415,7 +1457,7 @@ def calculate_integrated_maternity(
 
     if req.scenario in (BenefitScenario.ADOPTION, BenefitScenario.FOSTER):
         min_mat = params.adoption_foster_min_maternity_weeks
-        if apply_reduced_9_weeks_regime or (weeks_until_age_limit is not None and weeks_until_age_limit <= min_mat):
+        if apply_reduced_9_weeks_regime or (weeks_until_age_limit is not None and weeks_until_age_limit < min_mat):
             apply_reduced_9_weeks_regime = True
             maternity_weeks = min_mat
             warnings.append(
@@ -1462,7 +1504,7 @@ def calculate_integrated_maternity(
         and not apply_reduced_9_weeks_regime
         and weeks_until_age_limit is not None
     ):
-        remaining_until_14 = max(0, weeks_until_age_limit - maternity_weeks)
+        remaining_until_14 = max(0, weeks_until_age_limit - maternity_weeks - supplementary_weeks)
         if parental_base_weeks > remaining_until_14:
             parental_base_weeks = remaining_until_14
             reduced_par_ref = (
@@ -1486,7 +1528,7 @@ def calculate_integrated_maternity(
                 f"Wymiar urlopu rodzicielskiego obniżono o {req.previously_used_foster_parental_weeks} tyg. wykorzystanych wcześniej jako rodzina zastępcza (art. 183 § 8 KP)."
             )
 
-    # Podział macierzyńskiego (art. 180 § 4 i § 6 KP: min. 14 lub 8 tyg. PO porodzie dla matki)
+    # Podział macierzyńskiego (art. 180 § 4 i § 6 KP: min. 14 lub 8 tyg. PO porodzie dla matki; art. 183 § 2 KP dla adopcji/pieczy)
     if not p2_eligible:
         mother_mat = maternity_weeks
         father_mat = 0
@@ -1504,6 +1546,15 @@ def calculate_integrated_maternity(
         father_mat = maternity_weeks - mother_mat
     else:
         mother_mat = min(req.mother_maternity_weeks, maternity_weeks) if req.mother_maternity_weeks is not None else maternity_weeks
+        min_first_parent = min(
+            maternity_weeks,
+            8 if req.mother_early_transfer_8_weeks else params.maternity_min_mother_weeks,
+        )
+        if 0 < mother_mat < min_first_parent:
+            warnings.append(
+                f"Przy dzieleniu urlopu na warunkach urlopu macierzyńskiego pierwszy rodzic musi wykorzystać co najmniej {min_first_parent} tyg. przed rezygnacją na rzecz drugiego rodzica (art. 183 § 2 w zw. z art. 180 § 4/§ 6 KP oraz art. 29 ust. 4 ustawy zasiłkowej; aby całość przejął drugi rodzic od 1. dnia, wpisz 0 tyg. dla Rodzica 1). Skorygowano wymiar Rodzica 1 do {min_first_parent} tyg."
+            )
+            mother_mat = min_first_parent
         father_mat = max(0, maternity_weeks - mother_mat)
 
     # Podział rodzicielskiego (art. 182¹ᵃ § 4 KP: 9 tyg. nieprzenoszalnych z puli pierwotnej dla każdego rodzica)
@@ -1548,7 +1599,9 @@ def calculate_integrated_maternity(
         and not apply_reduced_9_weeks_regime
         and weeks_until_age_limit is not None
     ):
-        max_ext_until_14_days = max(0, (weeks_until_age_limit - maternity_weeks - mother_parental - father_parental) * 7)
+        max_ext_until_14_days = max(
+            0, (weeks_until_age_limit - maternity_weeks - supplementary_weeks - mother_parental - father_parental) * 7
+        )
         if remaining_ext_cap_days > max_ext_until_14_days:
             remaining_ext_cap_days = max_ext_until_14_days
             if req.combine_parental_with_work or req.father_combine_parental_with_work:

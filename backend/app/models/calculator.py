@@ -1,6 +1,6 @@
 from enum import Enum
-from typing import Optional
-from pydantic import BaseModel, Field
+from typing import Literal, Optional
+from pydantic import BaseModel, Field, model_validator
 
 
 class InsuranceTitle(str, Enum):
@@ -42,7 +42,7 @@ class WaitingPeriodExemptionReason(str, Enum):
 
 class IndividualBaseCalculationRequest(BaseModel):
     insurance_title: InsuranceTitle = InsuranceTitle.UOP
-    mode: str = Field(
+    mode: Literal["uop_12m", "previous_benefit", "jdg_art48a"] = Field(
         "uop_12m",
         description="Tryb wyliczenia: 'uop_12m', 'previous_benefit' (art. 43), 'jdg_art48a' (art. 48/48a/49)",
     )
@@ -101,6 +101,14 @@ class PregnancyBenefitRequest(BaseModel):
     contribution_debt_pln: float = Field(0.0, ge=0)
     employment_terminated_special: bool = False
     termination_reason: Optional[TerminationReason] = None
+
+    @model_validator(mode="after")
+    def validate_special_termination(self) -> "PregnancyBenefitRequest":
+        if self.employment_terminated_special and self.termination_reason is None:
+            raise ValueError(
+                "Przy zaznaczeniu ustania zatrudnienia/ubezpieczenia w ciąży należy wskazać przyczynę (termination_reason)."
+            )
+        return self
 
 
 class PregnancyBenefitResponse(BaseModel):

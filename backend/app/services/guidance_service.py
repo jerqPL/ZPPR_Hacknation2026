@@ -71,13 +71,17 @@ def get_risks() -> list[RiskItem]:
         ),
         RiskItem(
             id="wykorzystywanie_ezla_art17",
-            title="Praca zarobkowa lub niewłaściwe korzystanie ze zwolnienia e-ZLA (art. 17)",
+            title="Praca zarobkowa lub aktywność niezgodna z celem zwolnienia e-ZLA (art. 17)",
             severity="high",
             description=(
-                "Wykonywanie pracy zarobkowej w okresie orzeczonej niezdolności do pracy albo wykorzystywanie zwolnienia "
-                "w sposób niezgodny z jego celem skutkuje utratą prawa do zasiłku chorobowego za cały okres tego zwolnienia."
+                "Wykonywanie pracy zarobkowej w okresie orzeczonej niezdolności do pracy albo podejmowanie aktywności "
+                "utrudniającej lub wydłużającej proces leczenia (niezgodnej z celem zwolnienia) skutkuje utratą prawa "
+                "do zasiłku chorobowego za cały okres tego zwolnienia. Zgodnie z art. 17 ust. 1a–1b ustawy zasiłkowej "
+                "(2026 r.) wyłączone są jednak zwykłe czynności dnia codziennego (np. zakupy, spacer, wizyta w przychodni) "
+                "oraz czynności incydentalne, których podjęcia wymagają istotne okoliczności (np. podpisanie pilnej faktury "
+                "lub odpowiedź na maila — istotną okolicznością nie może być polecenie pracodawcy)."
             ),
-            how_to_avoid="Podczas e-ZLA nie wykonuj pracy zarobkowej (dotyczy również podpisywania faktur/umów na JDG) i przestrzegaj zaleceń lekarskich.",
+            how_to_avoid="Podczas e-ZLA powstrzymaj się od regularnej pracy zarobkowej i przestrzegaj zaleceń lekarskich; dopuszczalne są wyłącznie zwykłe czynności codzienne oraz niezbędne czynności incydentalne niebędące poleceniem pracodawcy.",
             applies_to=["Umowa o pracę", "Umowa zlecenie", "JDG"],
         ),
         RiskItem(

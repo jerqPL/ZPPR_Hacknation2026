@@ -367,14 +367,16 @@ def _mask_pesel(pesel: str) -> str:
 
 
 def _parse_single_amount(raw: str) -> float | None:
-    """Parsuje kwotę np. '7 500,00 zł.', '7500,50', '8 000 zł' -> float."""
-    m = re.search(r"(\d[\d\s\xa0]*(?:[,\.]\d{1,2})?)", raw)
+    """Parsuje kwotę np. '7 500,00 zł.', '7.500,50', '950,00', '8 000 zł' -> float."""
+    m = re.search(r"(\d{1,2}(?:[\s\xa0\.]\d{3})+(?:[,\.]\d{1,2})?|\d+(?:[,\.]\d{1,2})?)", raw)
     if not m:
         return None
     token = m.group(1).replace(" ", "").replace("\xa0", "")
-    # Jeżeli występuje i kropka i przecinek (np. 7.500,50), kropka jest separatorem tysięcznym
+    # Jeżeli występuje i kropka i przecinek (np. 7.500,50) lub format tysięczny z kropką (np. 7.500), kropka jest separatorem tysięcznym
     if "," in token and "." in token:
         token = token.replace(".", "").replace(",", ".")
+    elif re.fullmatch(r"\d{1,2}\.\d{3}", token):
+        token = token.replace(".", "")
     else:
         token = token.replace(",", ".")
     try:
@@ -414,16 +416,19 @@ def _extract_amounts_with_context(
         for line in text.splitlines():
             if re.search(r"\b(?:RAZEM|SUMA|ŁĄCZNIE|OGÓŁEM|TOTAL)\b", line, re.IGNORECASE):
                 continue
-            # Kwoty z groszami (np. 7 500,00 / 7500.50)
-            dec_matches = re.findall(r"(?<!\d)(\d{1,2}[\s\xa0]?\d{3}[,\.]\d{2})(?!\d)", line)
+            # Kwoty z groszami (np. 7 500,00 / 7.500,50 / 7500.50 / 950,00) — bez wyłapywania dat YYYY.MM.DD
+            dec_matches = re.findall(
+                r"(?<!\d)(?<!\d\.)(\d{1,2}[\s\xa0\.]\d{3}[,\.]\d{2}|\d{3,5}[,\.]\d{2})(?!\d|\.\d)",
+                line,
+            )
             for raw in dec_matches:
                 val = _parse_single_amount(raw)
                 if val is not None:
                     amounts.append(val)
-            # Kwoty całkowite jawnie z jednostką waluty (np. 7 500 zł, 8000 PLN)
+            # Kwoty całkowite jawnie z jednostką waluty (np. 7 500 zł, 7.500 zł, 8000 PLN, 950 zł)
             if not dec_matches:
                 int_matches = re.findall(
-                    r"(?<!\d)(\d{1,2}[\s\xa0]?\d{3})(?!\s*[,\.]\d)\s*(?:zł|zl|PLN)\b",
+                    r"(?<!\d)(?<!\d\.)(\d{1,2}[\s\xa0\.]\d{3}|\d{3,5})(?!\s*[,\.]\d)\s*(?:zł|zl|PLN)\b",
                     line,
                     re.IGNORECASE,
                 )
@@ -588,6 +593,8 @@ def analyze_pdf_bytes(filename: str, content: bytes) -> PdfAnalysisResult:
         )
     elif primary_form == "Z-3A":
         suggested_title = "zlecenie"
+    elif primary_form == "Z-3B":
+        suggested_title = "jdg"
     elif primary_form == "Z-3":
         suggested_title = "uop"
     elif re.search(r"UMOW[AY]\s+O\s+PRAC[ĘE]", upper):
@@ -611,13 +618,13 @@ def analyze_pdf_bytes(filename: str, content: bytes) -> PdfAnalysisResult:
     # Ostrożna weryfikacja statusu ubezpieczenia
     has_explicit_denial = bool(
         re.search(
-            r"NIE\s+PODLEGA|BRAK\s+UBEZPIECZENIA\s+CHOROBOWEGO|ODMOWA\s+PRAWA|WYŁĄCZON[YA]\s+Z\s+UBEZPIECZENIA|UBEZPIECZENIE\s+CHOROBOWE\s*:\s*NIE",
+            r"NIE\s+PODLEGA|NIE\s+JEST\s+OBJĘT[YA]\s+(?:OBOWIĄZKOWYM\s+|DOBROWOLNYM\s+)?UBEZPIECZENIEM\s+CHOROBOWYM|BRAK\s+UBEZPIECZENIA\s+CHOROBOWEGO|ODMOWA\s+PRAWA|WYŁĄCZON[YA]\s+Z\s+UBEZPIECZENIA|UBEZPIECZENIE\s+CHOROBOWE\s*:\s*NIE",
             upper,
         )
     )
     has_explicit_confirmation = bool(
         re.search(
-            r"PODLEGA\s+(?:OBOWIĄZKOWEMU\s+|DOBROWOLNEMU\s+)?UBEZPIECZENIU\s+CHOROBOWEMU|UBEZPIECZENIE\s+CHOROBOWE\s*:\s*TAK",
+            r"PODLEGA(?:Ł[AO]?)?\s+(?:OBOWIĄZKOWEMU\s+|DOBROWOLNEMU\s+)?UBEZPIECZENIU\s+CHOROBOWEMU|OBJĘT[YA]\s+(?:OBOWIĄZKOWYM\s+|DOBROWOLNYM\s+)?UBEZPIECZENIEM\s+CHOROBOWYM|UBEZPIECZENIE\s+CHOROBOWE\s*:\s*TAK",
             upper,
         )
     )

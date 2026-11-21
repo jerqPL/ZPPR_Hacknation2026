@@ -154,6 +154,31 @@ export default function IntegratedCalculatorPage() {
   const eqDiffPpStr = `+${((matStdRate - combinedRate) * 100).toFixed(1).replace(".", ",")} p.p.`;
   const paramsYear = legalParams?.year ?? 2026;
 
+  const getMaternityWeeksForChildren = (count: number) => {
+    const key = Math.min(Math.max(1, count), 5);
+    return (
+      legalParams?.maternity_weeks_by_children?.[String(key)] ??
+      MATERNITY_WEEKS_BY_CHILDREN[key] ??
+      20
+    );
+  };
+  const minMotherWeeks = legalParams?.maternity_min_mother_weeks ?? 14;
+  const adoptionMinMatWeeks = legalParams?.adoption_foster_min_maternity_weeks ?? 9;
+  const maxMatWeeks = Math.max(
+    37,
+    ...Object.values(legalParams?.maternity_weeks_by_children ?? MATERNITY_WEEKS_BY_CHILDREN)
+  );
+  const maxParentalWeeks = Math.max(
+    legalParams?.parental_weeks_single ?? 41,
+    legalParams?.parental_weeks_multiple ?? 43,
+    legalParams?.parental_weeks_za_zyciem_single ?? 65,
+    legalParams?.parental_weeks_za_zyciem_multiple ?? 67
+  );
+  const maxSingleParentParental = Math.max(
+    1,
+    maxParentalWeeks - (legalParams?.parental_non_transferable_weeks ?? 9)
+  );
+
   useEffect(() => {
     api.getSampleCases().then(setSampleCases).catch(() => setSampleCases([]));
     api
@@ -289,7 +314,7 @@ export default function IntegratedCalculatorPage() {
       setPrevFosterParWeeks(0);
       setFosterDeferred(false);
       setFosterFamilyType("non_professional");
-      setMotherMaternityWeeks(MATERNITY_WEEKS_BY_CHILDREN[Math.min(childrenCount, 5)] || 20);
+      setMotherMaternityWeeks(getMaternityWeeksForChildren(childrenCount));
     } else {
       setStillbirthOrEarlyDeath(false);
       setMotherEarlyTransfer8Weeks(false);
@@ -298,7 +323,7 @@ export default function IntegratedCalculatorPage() {
         setFatherPaternity(false);
       }
       setMotherMaternityWeeks(
-        adoptionShort9Weeks ? 9 : MATERNITY_WEEKS_BY_CHILDREN[Math.min(childrenCount, 5)] || 20
+        adoptionShort9Weeks ? adoptionMinMatWeeks : getMaternityWeeksForChildren(childrenCount)
       );
     }
   };
@@ -307,9 +332,9 @@ export default function IntegratedCalculatorPage() {
     const clamped = Math.max(1, Math.min(15, newCount));
     setChildrenCount(clamped);
     if (scenario !== "birth" && adoptionShort9Weeks) {
-      setMotherMaternityWeeks(9);
+      setMotherMaternityWeeks(adoptionMinMatWeeks);
     } else {
-      setMotherMaternityWeeks(MATERNITY_WEEKS_BY_CHILDREN[Math.min(clamped, 5)] || 20);
+      setMotherMaternityWeeks(getMaternityWeeksForChildren(clamped));
     }
   };
 
@@ -377,7 +402,7 @@ export default function IntegratedCalculatorPage() {
       setChildAgeYears(3);
     }
 
-    const defaultMat = MATERNITY_WEEKS_BY_CHILDREN[Math.min(found.children_count, 5)] || 20;
+    const defaultMat = getMaternityWeeksForChildren(found.children_count);
     if (found.mother_maternity_weeks !== undefined && found.mother_maternity_weeks !== null) {
       setMotherMaternityWeeks(found.mother_maternity_weeks);
     } else {
@@ -715,7 +740,7 @@ export default function IntegratedCalculatorPage() {
                     const checked = e.target.checked;
                     setAdoptionShort9Weeks(checked);
                     setMotherMaternityWeeks(
-                      checked ? 9 : MATERNITY_WEEKS_BY_CHILDREN[childrenCount] || 20
+                      checked ? adoptionMinMatWeeks : getMaternityWeeksForChildren(childrenCount)
                     );
                   }}
                   className="h-4 w-4 shrink-0 accent-[#007834]"
@@ -738,7 +763,7 @@ export default function IntegratedCalculatorPage() {
                     <input
                       type="number"
                       min={0}
-                      max={37}
+                      max={maxMatWeeks}
                       value={prevFosterMatWeeks}
                       onChange={(e) => setPrevFosterMatWeeks(Number(e.target.value))}
                       className="mt-1 w-full rounded border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-700 dark:bg-[#111c17]"
@@ -754,7 +779,7 @@ export default function IntegratedCalculatorPage() {
                     <input
                       type="number"
                       min={0}
-                      max={67}
+                      max={maxParentalWeeks}
                       value={prevFosterParWeeks}
                       onChange={(e) => setPrevFosterParWeeks(Number(e.target.value))}
                       className="mt-1 w-full rounded border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-700 dark:bg-[#111c17]"
@@ -950,7 +975,7 @@ export default function IntegratedCalculatorPage() {
                     <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400">
                       <InfoTooltip
                         label="Zaległość ZUS Rodzica 2 (zł)"
-                        tooltip="Art. 2a ustawy zasiłkowej: zadłużenie JDG powyżej 48,06 zł (1% płacy minimalnej) wstrzymuje wypłatę zasiłku drugiego rodzica."
+                        tooltip={`Art. 2a ustawy zasiłkowej: zadłużenie JDG powyżej ${debtThresholdStr} zł (1% płacy minimalnej) wstrzymuje wypłatę zasiłku drugiego rodzica.`}
                       />
                     </label>
                     <input
@@ -1406,7 +1431,7 @@ export default function IntegratedCalculatorPage() {
                   <InfoTooltip
                     label={
                       scenario === "birth"
-                        ? `Macierzyński matki (min. ${stillbirthOrEarlyDeath || motherEarlyTransfer8Weeks ? 8 : 14} tyg.)`
+                        ? `Macierzyński matki (min. ${stillbirthOrEarlyDeath || motherEarlyTransfer8Weeks ? 8 : minMotherWeeks} tyg.)`
                         : "Urlop na warunkach macierzyńskiego — Rodzic 1 (tyg.)"
                     }
                     tooltip={
@@ -1422,10 +1447,10 @@ export default function IntegratedCalculatorPage() {
                     scenario === "birth"
                       ? stillbirthOrEarlyDeath || motherEarlyTransfer8Weeks
                         ? 8
-                        : 14
+                        : minMotherWeeks
                       : 0
                   }
-                  max={37}
+                  max={maxMatWeeks}
                   value={motherMaternityWeeks}
                   onChange={(e) => setMotherMaternityWeeks(Number(e.target.value))}
                   className="mt-1 w-full rounded border border-slate-300 px-2.5 py-1.5 text-sm dark:border-slate-700"
@@ -1442,7 +1467,7 @@ export default function IntegratedCalculatorPage() {
                 <input
                   type="number"
                   min={0}
-                  max={58}
+                  max={maxSingleParentParental}
                   placeholder="maks. dostępna pula"
                   value={motherParentalWeeks}
                   onChange={(e) => setMotherParentalWeeks(e.target.value)}
@@ -1461,7 +1486,7 @@ export default function IntegratedCalculatorPage() {
                   <input
                     type="number"
                     min={0}
-                    max={67}
+                    max={maxParentalWeeks}
                     value={fatherParentalWeeks}
                     onChange={(e) => setFatherParentalWeeks(Number(e.target.value))}
                     className="mt-1 w-full rounded border border-slate-300 px-2.5 py-1.5 text-sm dark:border-slate-700"
@@ -1479,8 +1504,8 @@ export default function IntegratedCalculatorPage() {
                     onChange={(e) => {
                       const checked = e.target.checked;
                       setMotherEarlyTransfer8Weeks(checked);
-                      if (!checked && motherMaternityWeeks < 14) {
-                        setMotherMaternityWeeks(14);
+                      if (!checked && motherMaternityWeeks < minMotherWeeks) {
+                        setMotherMaternityWeeks(minMotherWeeks);
                       }
                     }}
                     className="h-4 w-4 shrink-0 accent-[#007834]"
@@ -1656,7 +1681,7 @@ export default function IntegratedCalculatorPage() {
                     <input
                       type="number"
                       min={1}
-                      max={58}
+                      max={maxSingleParentParental}
                       value={workWeeks}
                       onChange={(e) => setWorkWeeks(Number(e.target.value))}
                       className="w-full rounded border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-700 dark:bg-[#111c17]"
@@ -1720,7 +1745,7 @@ export default function IntegratedCalculatorPage() {
                           <input
                             type="number"
                             min={1}
-                            max={58}
+                            max={maxSingleParentParental}
                             value={fatherWorkWeeks}
                             onChange={(e) => setFatherWorkWeeks(Number(e.target.value))}
                             className="w-full rounded border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-700 dark:bg-[#111c17]"

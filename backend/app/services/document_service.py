@@ -112,7 +112,7 @@ def get_document_guidance(
                         title="Zaświadczenie płatnika składek (dla pracownika)",
                         submitted_by="Pracodawca",
                         submitted_to="ZUS (PUE/eZUS)",
-                        deadline="Niezwłocznie po otrzymaniu wniosku pracownika",
+                        deadline="Niezwłocznie, nie później niż w terminie 7 dni od dnia otrzymania wniosku (art. 61b ust. 5 ustawy zasiłkowej)",
                         notes="Na dalszy okres zasiłku chorobowego pracodawca może złożyć ZAS-12.",
                     )
                 )
@@ -134,7 +134,7 @@ def get_document_guidance(
                         title="Zaświadczenie płatnika składek (dla zleceniobiorcy)",
                         submitted_by="Zleceniodawca",
                         submitted_to="ZUS (PUE/eZUS)",
-                        deadline="Niezwłocznie po zgłoszeniu niezdolności / wniosku",
+                        deadline="Niezwłocznie, nie później niż w terminie 7 dni od dnia otrzymania wniosku (art. 61b ust. 5 ustawy zasiłkowej)",
                         notes="Zawiera okresy ubezpieczenia i podstawę wymiaru składek.",
                     )
                 )
@@ -249,11 +249,14 @@ def _build_application_sections(
             f"Na podstawie {legal_basis} zwracam się z wnioskiem o udzielenie mi urlopu macierzyńskiego oraz bezpośrednio po nim urlopu rodzicielskiego "
             f"z tytułu urodzenia dziecka w dniu {birth_txt}, w okresie {period_txt} "
             f"(planowana liczba części urlopu rodzicielskiego: {req.leave_parts_count or 1}, maksymalnie {p.parental_max_parts}).\n\n"
+            "Wskazanie dotychczas wykorzystanego urlopu rodzicielskiego / zasiłku za okres tego urlopu (§ 15 ust. 1 pkt 2): "
+            "okres: ............ (dotychczas wykorzystana liczba części / złożonych wniosków: ............).\n\n"
             f"Jednocześnie wnioskuję o wypłacanie zasiłku macierzyńskiego w wariancie: {variant_desc}."
         )
         attachments = [
-            "1. Odpis skrócony aktu urodzenia dziecka (kopia).",
-            "2. Oświadczenie o braku zamiaru korzystania przez drugiego z rodziców z urlopu rodzicielskiego w tym samym okresie (jeśli dotyczy).",
+            "1. Odpis skrócony aktu urodzenia dziecka lub jego kopia (§ 15 ust. 2 pkt 1).",
+            "2. Oświadczenie o braku zamiaru korzystania przez drugiego z rodziców z urlopu rodzicielskiego (albo o okresie korzystania) w okresie objętym wnioskiem (§ 15 ust. 2 pkt 2).",
+            "3. Kopia zaświadczenia „Za życiem” (art. 4 ust. 3 ustawy „Za życiem”) — jeżeli dotyczy wydłużonego wymiaru urlopu rodzicielskiego (§ 15 ust. 2 pkt 3).",
         ]
     elif req.application_type == ApplicationType.LEAVE_SUPPLEMENTARY:
         title = "WNIOSEK O UDZIELENIE UZUPEŁNIAJĄCEGO URLOPU MACIERZYŃSKIEGO"
@@ -316,7 +319,8 @@ def _build_application_sections(
         body = (
             f"Na podstawie {legal_basis} zwracam się z wnioskiem o udzielenie mi urlopu ojcowskiego (albo jego części) "
             f"z tytułu urodzenia / przysposobienia dziecka w dniu {birth_txt}, w okresie {period_txt} "
-            f"(maksymalny łączny wymiar: {p.paternity_weeks} tygodnie, nie więcej niż w 2 częściach po min. 7 dni, do ukończenia 12. miesiąca życia dziecka).\n\n"
+            f"(maksymalny łączny wymiar: {p.paternity_weeks} tygodnie, nie więcej niż w 2 częściach po min. 7 dni, do ukończenia 12. miesiąca życia dziecka "
+            f"albo w ciągu 12 miesięcy od uprawomocnienia się postanowienia o przysposobieniu, nie później niż do ukończenia 14. roku życia — art. 182³ § 1 KP).\n\n"
             f"Za okres urlopu ojcowskiego przysługuje zasiłek macierzyński w wysokości {p.paternity_rate * 100:.0f}% podstawy wymiaru."
         )
         attachments = [
@@ -328,13 +332,14 @@ def _build_application_sections(
         legal_basis = "art. 183 Kodeksu pracy; § 18 Rozporządzenia MRPiPS z dnia 11 marca 2025 r. (Dz.U. z 2025 r. poz. 322)"
         body = (
             f"Na podstawie {legal_basis} zwracam się z wnioskiem o udzielenie mi urlopu na warunkach urlopu macierzyńskiego "
-            f"z tytułu przyjęcia na wychowanie dziecka urodzonego w dniu {birth_txt} (w ramach rodziny zastępczej niezawodowej albo wystąpienia do sądu opiekuńczego o przysposobienie), "
-            f"w okresie {period_txt}.\n\n"
+            f"z tytułu przyjęcia na wychowanie dziecka: imię i nazwisko ............ (ur. {birth_txt}), "
+            f"w ramach rodziny zastępczej niezawodowej albo wystąpienia do sądu opiekuńczego o przysposobienie, "
+            f"w okresie {period_txt} (wniosek składany w terminie 7 dni od dnia przyjęcia dziecka na wychowanie — art. 183 § 6 KP).\n\n"
             f"Wybrany wariant wypłaty zasiłku macierzyńskiego: {variant_desc}."
         )
         attachments = [
-            "1. Oświadczenie pracownika o dacie przyjęcia dziecka na wychowanie oraz kopia wniosku o wszczęcie postępowania o przysposobienie z datą urodzenia dziecka (albo kopia orzeczenia sądu o umieszczeniu dziecka w rodzinie zastępczej niezawodowej).",
-            "2. Kopia prawomocnej decyzji o odroczeniu obowiązku szkolnego (jeżeli dotyczy dziecka w wieku 7–10 lat w rodzinie zastępczej).",
+            "1. Oświadczenie pracownika o dacie przyjęcia dziecka na wychowanie oraz kopia wniosku o wszczęcie postępowania o przysposobienie z poświadczeniem sądu albo zaświadczenie sądu opiekuńczego, albo kopia prawomocnego orzeczenia sądu o umieszczeniu dziecka w rodzinie zastępczej niezawodowej, albo kopia umowy cywilnoprawnej zawartej pomiędzy rodziną zastępczą a starostą (§ 18 ust. 2 pkt 1).",
+            "2. Kopia prawomocnej decyzji o odroczeniu obowiązku szkolnego (jeżeli dotyczy dziecka w wieku 7–10 lat w rodzinie zastępczej — § 18 ust. 2 pkt 2).",
         ]
     elif req.application_type == ApplicationType.LEAVE_PRE_BIRTH:
         title = "WNIOSEK O UDZIELENIE CZĘŚCI URLOPU MACIERZYŃSKIEGO PRZED PRZEWIDYWANĄ DATĄ PORODU"
@@ -346,19 +351,20 @@ def _build_application_sections(
             "Po porodzie przysługuje pozostała, niewykorzystana część urlopu macierzyńskiego."
         )
         attachments = [
-            "1. Zaświadczenie lekarskie określające przewidywaną datę porodu (§ 2 pkt 1).",
+            "1. Kopia zaświadczenia lekarskiego wystawionego na zwykłym druku, określającego przewidywaną datę porodu (§ 2 ust. 2).",
         ]
     elif req.application_type == ApplicationType.LEAVE_FATHER_TAKEOVER:
         title = "WNIOSEK PRACOWNIKA – OJCA O UDZIELENIE POZOSTAŁEJ CZĘŚCI URLOPU MACIERZYŃSKIEGO"
         legal_basis = "art. 180 § 4 i § 9 Kodeksu pracy; § 5 Rozporządzenia MRPiPS z dnia 11 marca 2025 r. (Dz.U. z 2025 r. poz. 322)"
         body = (
             f"Na podstawie {legal_basis} zwracam się z wnioskiem o udzielenie mi pozostałej części urlopu macierzyńskiego "
-            f"na dziecko urodzone w dniu {birth_txt}, w okresie {period_txt}, bezpośrednio po rezygnacji matki dziecka z korzystania z pozostałej części urlopu macierzyńskiego "
-            f"(po wykorzystaniu przez matkę co najmniej {p.maternity_min_mother_weeks} tygodni po porodzie)."
+            f"na dziecko: imię i nazwisko ............ (ur. {birth_txt}), w okresie {period_txt}, bezpośrednio po rezygnacji matki dziecka z korzystania z pozostałej części urlopu macierzyńskiego "
+            f"(po wykorzystaniu przez matkę co najmniej {p.maternity_min_mother_weeks} tygodni po porodzie).\n\n"
+            "Oświadczenie pracownika (§ 5 ust. 1 pkt 3): okres urlopu macierzyńskiego (albo pobierania zasiłku macierzyńskiego za okres odpowiadający części urlopu macierzyńskiego) wykorzystany przed porodem wynosi: ............ ."
         )
         attachments = [
-            "1. Skrócony odpis aktu urodzenia dziecka (§ 5 ust. 2 pkt 1).",
-            "2. Oświadczenie pracownicy – matki dziecka o zamiarze rezygnacji z pozostałej części urlopu macierzyńskiego (albo oświadczenie ubezpieczonej matki o rezygnacji z pobierania zasiłku macierzyńskiego).",
+            "1. Skrócony odpis aktu urodzenia dziecka lub jego kopia (§ 5 ust. 2 pkt 1).",
+            "2. Oświadczenie pracownicy – matki dziecka o zamiarze rezygnacji z pozostałej części urlopu macierzyńskiego (albo oświadczenie ubezpieczonej matki o zamiarze rezygnacji z pobierania zasiłku macierzyńskiego — § 5 ust. 2 pkt 2).",
         ]
     elif req.application_type == ApplicationType.ZAM_ZUS:
         title = "WNIOSEK O ZASIŁEK MACIERZYŃSKI — FORMULARZ ZUS ZAM"
