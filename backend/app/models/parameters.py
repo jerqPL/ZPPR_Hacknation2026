@@ -53,4 +53,8 @@ class LegalParameters(BaseModel):
     voluntary_sickness_max_monthly_gross: float = Field(23550.0, gt=0)
     jdg_preferential_min_base_gross: float = Field(1441.8, gt=0)
     jdg_standard_min_base_gross: float = Field(5652.0, gt=0)
+    parental_benefit_minimum_monthly: float = Field(1000.0, ge=0)
+    rehabilitation_benefit_pregnancy_rate: float = Field(1.0, gt=0, le=1.0)
+    rehabilitation_benefit_max_days: int = Field(360, ge=1)
+
 

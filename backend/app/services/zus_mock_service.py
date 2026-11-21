@@ -133,16 +133,25 @@ def get_ezla_list(persona_id: str) -> list[EzlaCertificate]:
 
 
 def get_debt_status(persona_id: str) -> DebtStatusResponse:
+    from app.services.parameter_store import parameter_store
+
     profile = get_profile(persona_id)
+    params = parameter_store.get()
+    threshold_1pct = round(params.minimum_wage_gross * 0.01, 2)
     now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-    if profile.has_contribution_debt:
+    if profile.has_contribution_debt and profile.debt_amount_pln > threshold_1pct:
         warning = (
-            f"Wykryto zadłużenie z tytułu składek na ubezpieczenia społeczne ({profile.debt_amount_pln:.2f} zł). "
-            "Dla osób prowadzących działalność gospodarczą zadłużenie przekraczające 1% minimalnego wynagrodzenia "
-            "wstrzymuje wypłatę zasiłku do czasu uregulowania należności (w ciągu 6 miesięcy prawo może ulec przedawnieniu)."
+            f"Wykryto zadłużenie z tytułu składek na ubezpieczenia społeczne ({profile.debt_amount_pln:.2f} zł), "
+            f"które przekracza próg 1% minimalnego wynagrodzenia ({threshold_1pct:.2f} zł w {params.year} r. — art. 2a ust. 1 ustawy zasiłkowej). "
+            "Dla osób prowadzących działalność gospodarczą wstrzymuje to wypłatę zasiłku do czasu spłaty całości zadłużenia "
+            "(brak uregulowania w ciągu 6 miesięcy od dnia powstania prawa powoduje przedawnienie prawa do świadczenia — art. 2a ust. 2)."
+        )
+    elif profile.has_contribution_debt:
+        warning = (
+            f"Wykryto zaległość {profile.debt_amount_pln:.2f} zł, która nie przekracza progu 1% minimalnego wynagrodzenia ({threshold_1pct:.2f} zł) — nie wstrzymuje wypłaty zasiłku, ale zaleca się jej uregulowanie."
         )
     else:
-        warning = "Brak zaległości z tytułu składek na ubezpieczenia społeczne na dzień sprawdzenia."
+        warning = f"Brak zaległości z tytułu składek na ubezpieczenia społeczne na dzień sprawdzenia (próg wstrzymania wypłaty z art. 2a: {threshold_1pct:.2f} zł)."
 
     return DebtStatusResponse(
         checked_at=now_iso,

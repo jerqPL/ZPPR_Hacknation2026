@@ -189,3 +189,99 @@ def test_individual_benefit_base_calculator_f():
     assert calc_data["benefit_base_parent2"] == 7075.78
     assert "indywidualną podstawę" in calc_data["benefit_base_explanation"]
 
+
+def test_edge_cases_parental_split_work_extension_and_row_math():
+    # 1. Drugi rodzic bierze 15 tyg. rodzicielskiego w wariancie 81,5% -> 6 tyg. po 81,5% + 9 tyg. nieprzenoszalnych po 70%
+    # + łączenie urlopu rodzicielskiego z pracą (10 tyg. na 0.5 etatu)
+    res = client.post(
+        "/api/v1/calculator/integrated",
+        json={
+            "scenario": "birth",
+            "insurance_title": "uop",
+            "has_sickness_insurance_on_birth_date": True,
+            "children_count": 1,
+            "gross_monthly_salary": 8000.0,
+            "second_parent_gross_salary": 9000.0,
+            "payment_variant": "81_5",
+            "father_takes_parental_weeks": 15,
+            "combine_parental_with_work": True,
+            "work_fte_fraction": 0.5,
+            "combined_work_weeks": 10,
+            "work_during_extended_part": True,
+        },
+    )
+    assert res.status_code == 200
+    data = res.json()
+    assert data["eligible"] is True
+    assert data["parental_weeks_extended_by_work"] == 10.0
+
+    # Weryfikacja spójności matematycznej każdego wiersza: (monthly / 30) * (weeks * 7) == total_gross_pln
+    for row in data["breakdown"]:
+        expected_total = round((row["monthly_gross_pln"] / 30.0) * (row["weeks"] * 7.0), 2)
+        assert row["total_gross_pln"] == expected_total
+
+    # Sprawdzenie podziału rodzicielskiego ojca na 6 tyg. (81,5%) i 9 tyg. (70%)
+    father_rows = [r for r in data["breakdown"] if r["parent"] == "Ojciec" and "rodzicielski" in r["label"].lower()]
+    assert len(father_rows) == 2
+    rates = sorted([r["rate_percent"] for r in father_rows])
+    assert rates == [70.0, 81.5]
+
+
+def test_edge_cases_minimum_1000_top_up_stillbirth_and_uninsured_mother():
+    # 1. Podwyższenie zasiłku macierzyńskiego do 1000 zł (art. 31 ust. 3a) na preferencyjnym ZUS (JDG)
+    res_low = client.post(
+        "/api/v1/calculator/integrated",
+        json={
+            "scenario": "birth",
+            "insurance_title": "jdg",
+            "has_sickness_insurance_on_birth_date": True,
+            "children_count": 1,
+            "gross_monthly_salary": 1441.80,
+            "payment_variant": "100_70",
+        },
+    )
+    assert res_low.status_code == 200
+    low_data = res_low.json()
+    assert low_data["minimum_benefit_top_up_applied"] is True
+    for row in low_data["breakdown"]:
+        assert row["monthly_gross_pln"] >= 1000.0
+
+    # 2. Urodzenie martwego dziecka (art. 180¹ § 1 KP) -> 8 tygodni, 100%
+    res_sb = client.post(
+        "/api/v1/calculator/integrated",
+        json={
+            "scenario": "birth",
+            "insurance_title": "uop",
+            "has_sickness_insurance_on_birth_date": True,
+            "children_count": 1,
+            "stillbirth_or_early_death": True,
+            "gross_monthly_salary": 7000.0,
+        },
+    )
+    assert res_sb.status_code == 200
+    sb_data = res_sb.json()
+    assert sb_data["maternity_weeks"] == 8
+    assert sb_data["parental_weeks_total"] == 0.0
+    assert sb_data["total_weeks"] == 8.0
+
+    # 3. Nieubezpieczona matka + ubezpieczony ojciec (art. 31 ust. 3h + art. 182³ KP)
+    res_father = client.post(
+        "/api/v1/calculator/integrated",
+        json={
+            "scenario": "birth",
+            "insurance_title": "zlecenie",
+            "has_sickness_insurance_on_birth_date": False,
+            "second_parent_insured_claim": True,
+            "second_parent_gross_salary": 8000.0,
+            "father_takes_parental_weeks": 32,
+            "father_takes_paternity_leave": True,
+        },
+    )
+    assert res_father.status_code == 200
+    f_data = res_father.json()
+    assert f_data["eligible"] is True
+    assert f_data["maternity_weeks"] == 0
+    assert f_data["parental_weeks_total"] == 32.0
+    assert f_data["paternity_weeks"] == 2
+
+

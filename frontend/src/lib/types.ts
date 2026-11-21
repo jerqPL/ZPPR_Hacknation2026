@@ -80,6 +80,9 @@ export interface PregnancyBenefitResponse {
   benefit_base_explanation?: string | null;
   daily_benefit_gross: number;
   monthly_benefit_gross: number;
+  rehabilitation_monthly_gross?: number;
+  rehabilitation_daily_gross?: number;
+  rehabilitation_max_days?: number;
   max_benefit_days: number;
   employer_pay_days: number;
   payer: string;
@@ -104,6 +107,7 @@ export interface IntegratedCalculatorResponse {
   benefit_base_parent2: number;
   benefit_base_explanation?: string | null;
   benefit_base_parent2_explanation?: string | null;
+  minimum_benefit_top_up_applied?: boolean;
   total_weeks: number;
   maternity_weeks: number;
   supplementary_maternity_weeks: number;

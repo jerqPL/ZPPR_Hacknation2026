@@ -15,6 +15,15 @@ import type {
   SampleCase,
 } from "@/lib/types";
 
+const MATERNITY_WEEKS_BY_CHILDREN: Record<number, number> = {
+  1: 20,
+  2: 31,
+  3: 33,
+  4: 35,
+  5: 37,
+  6: 37,
+};
+
 export default function IntegratedCalculatorPage() {
   const { user } = useUser();
 
@@ -29,6 +38,7 @@ export default function IntegratedCalculatorPage() {
     user?.insurance_title || "uop"
   );
   const [insuredOnDate, setInsuredOnDate] = useState(user ? user.has_sickness_insurance : true);
+  const [secondParentInsuredClaim, setSecondParentInsuredClaim] = useState(false);
   const [childrenCount, setChildrenCount] = useState(1);
   const [childAgeYears, setChildAgeYears] = useState(3);
   const [fosterFamilyType, setFosterFamilyType] = useState<FosterFamilyType>("non_professional");
@@ -37,6 +47,9 @@ export default function IntegratedCalculatorPage() {
   const [prevFosterMatWeeks, setPrevFosterMatWeeks] = useState(0);
   const [prevFosterParWeeks, setPrevFosterParWeeks] = useState(0);
   const [hasZaZyciem, setHasZaZyciem] = useState(false);
+  const [stillbirthOrEarlyDeath, setStillbirthOrEarlyDeath] = useState(false);
+  const [motherEarlyTransfer8Weeks, setMotherEarlyTransfer8Weeks] = useState(false);
+  const [preBirthWeeks, setPreBirthWeeks] = useState(0);
 
   const [premature, setPremature] = useState(false);
   const [gestationWeek, setGestationWeek] = useState(32);
@@ -77,7 +90,9 @@ export default function IntegratedCalculatorPage() {
   const [combineWork, setCombineWork] = useState(false);
   const [workFte, setWorkFte] = useState(0.5);
   const [workWeeks, setWorkWeeks] = useState(10);
+  const [workDuringExtendedPart, setWorkDuringExtendedPart] = useState(true);
   const [employerCount, setEmployerCount] = useState(user?.employer_insured_count ?? 30);
+  const [contributionDebt, setContributionDebt] = useState(user?.debt_amount_pln ?? 0);
 
   const [result, setResult] = useState<IntegratedCalculatorResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -86,6 +101,26 @@ export default function IntegratedCalculatorPage() {
   useEffect(() => {
     api.getSampleCases().then(setSampleCases).catch(() => setSampleCases([]));
   }, []);
+
+  useEffect(() => {
+    if (user) {
+      setInsuranceTitle(user.insurance_title);
+      setInsuredOnDate(user.has_sickness_insurance);
+      setGrossSalary(user.declared_gross_salary);
+      setEmployerCount(user.employer_insured_count);
+      setContributionDebt(user.debt_amount_pln || 0);
+    }
+  }, [user]);
+
+  const handleChildrenCountChange = (newCount: number) => {
+    const clamped = Math.max(1, Math.min(6, newCount));
+    setChildrenCount(clamped);
+    if (scenario !== "birth" && adoptionShort9Weeks) {
+      setMotherMaternityWeeks(9);
+    } else {
+      setMotherMaternityWeeks(MATERNITY_WEEKS_BY_CHILDREN[clamped] || 20);
+    }
+  };
 
   const handleLoadSampleCase = async (caseId: string) => {
     setSelectedCaseId(caseId);
@@ -98,6 +133,10 @@ export default function IntegratedCalculatorPage() {
     setScenario(found.scenario || "birth");
     setInsuranceTitle(found.insurance_title);
     setInsuredOnDate(found.insured_on_event_date);
+    setSecondParentInsuredClaim(false);
+    setStillbirthOrEarlyDeath(false);
+    setMotherEarlyTransfer8Weeks(false);
+    setPreBirthWeeks(0);
     setChildrenCount(found.children_count);
     if (found.child_age_years !== undefined && found.child_age_years !== null) {
       setChildAgeYears(found.child_age_years);
@@ -123,10 +162,11 @@ export default function IntegratedCalculatorPage() {
     }
     setPaymentVariant(found.payment_variant);
     setEmployerCount(found.employer_insured_count);
+    const defaultMat = MATERNITY_WEEKS_BY_CHILDREN[Math.min(found.children_count, 5)] || 20;
     if (found.mother_maternity_weeks !== undefined && found.mother_maternity_weeks !== null) {
       setMotherMaternityWeeks(found.mother_maternity_weeks);
     } else {
-      setMotherMaternityWeeks(20);
+      setMotherMaternityWeeks(defaultMat);
     }
     setFatherParentalWeeks(found.father_takes_parental_weeks ?? 9);
     setFatherPaternity(Boolean(found.father_takes_paternity_leave));
@@ -149,7 +189,7 @@ export default function IntegratedCalculatorPage() {
         second_parent_gross_salary: found.second_parent_gross_salary ?? 8000,
         second_parent_custom_base: found.second_parent_custom_base ?? null,
         payment_variant: found.payment_variant,
-        mother_maternity_weeks: found.mother_maternity_weeks ?? 20,
+        mother_maternity_weeks: found.mother_maternity_weeks ?? defaultMat,
         father_takes_parental_weeks: found.father_takes_parental_weeks ?? 9,
         father_takes_paternity_leave: Boolean(found.father_takes_paternity_leave),
         employer_insured_count: found.employer_insured_count,
@@ -212,6 +252,8 @@ export default function IntegratedCalculatorPage() {
         scenario,
         insurance_title: insuranceTitle,
         has_sickness_insurance_on_birth_date: insuredOnDate,
+        second_parent_insured_claim:
+          !insuredOnDate || insuranceTitle === "none" ? secondParentInsuredClaim : false,
         children_count: Number(childrenCount),
         child_age_years: scenario === "birth" ? null : Number(childAgeYears),
         foster_family_type: fosterFamilyType,
@@ -222,6 +264,9 @@ export default function IntegratedCalculatorPage() {
         previously_used_foster_parental_weeks:
           scenario === "adoption" ? Number(prevFosterParWeeks) : 0,
         has_za_zyciem_certificate: hasZaZyciem,
+        stillbirth_or_early_death: scenario === "birth" ? stillbirthOrEarlyDeath : false,
+        mother_early_transfer_8_weeks: scenario === "birth" ? motherEarlyTransfer8Weeks : false,
+        pre_birth_maternity_weeks: scenario === "birth" ? Number(preBirthWeeks) : 0,
         premature_or_hospitalized: premature,
         gestation_week: premature ? Number(gestationWeek) : null,
         birth_weight_grams: premature ? Number(birthWeight) : null,
@@ -237,7 +282,9 @@ export default function IntegratedCalculatorPage() {
         combine_parental_with_work: combineWork,
         work_fte_fraction: combineWork ? Number(workFte) : 0,
         combined_work_weeks: combineWork ? Number(workWeeks) : 0,
+        work_during_extended_part: combineWork ? workDuringExtendedPart : true,
         employer_insured_count: Number(employerCount),
+        contribution_debt_pln: insuranceTitle === "jdg" ? Number(contributionDebt) : 0,
       });
       setResult(res);
     } catch (err) {
@@ -322,11 +369,14 @@ export default function IntegratedCalculatorPage() {
                 <button
                   key={opt.id}
                   type="button"
-                  onClick={() => setScenario(opt.id)}
+                  onClick={() => {
+                    setScenario(opt.id);
+                    setMotherMaternityWeeks(MATERNITY_WEEKS_BY_CHILDREN[childrenCount] || 20);
+                  }}
                   className={`rounded-lg border px-2 py-2 text-xs font-semibold transition ${
                     scenario === opt.id
                       ? "border-[#007834] bg-[#e6f4ec] text-[#005a27] dark:bg-[#007834]/20 dark:text-emerald-300"
-                      : "border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-emerald-950 dark:text-slate-300 dark:hover:border-emerald-700 dark:hover:bg-[#1e3328] dark:hover:text-white"
+                      : "border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-emerald-950 dark:text-slate-400 dark:hover:bg-[#16241d]"
                   }`}
                 >
                   {opt.label}
@@ -405,7 +455,13 @@ export default function IntegratedCalculatorPage() {
                 <input
                   type="checkbox"
                   checked={adoptionShort9Weeks}
-                  onChange={(e) => setAdoptionShort9Weeks(e.target.checked)}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setAdoptionShort9Weeks(checked);
+                    setMotherMaternityWeeks(
+                      checked ? 9 : MATERNITY_WEEKS_BY_CHILDREN[childrenCount] || 20
+                    );
+                  }}
                   className="h-4 w-4 accent-[#007834]"
                 />
                 <InfoTooltip
@@ -485,7 +541,7 @@ export default function IntegratedCalculatorPage() {
                 min={1}
                 max={6}
                 value={childrenCount}
-                onChange={(e) => setChildrenCount(Number(e.target.value))}
+                onChange={(e) => handleChildrenCountChange(Number(e.target.value))}
                 className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700"
               />
             </div>
@@ -500,9 +556,26 @@ export default function IntegratedCalculatorPage() {
             />
             <InfoTooltip
               label="Podleganie ubezpieczeniu chorobowemu na dzień porodu / przyjęcia dziecka"
-              tooltip="Warunek konieczny do uzyskania zasiłku macierzyńskiego. Przy umowie o pracę jest automatyczny; na zleceniu i JDG musisz być zgłoszony/a do dobrowolnego ubezpieczenia chorobowego."
+              tooltip="Warunek konieczny do uzyskania zasiłku macierzyńskiego przez matkę. Przy umowie o pracę jest automatyczny; na zleceniu i JDG musisz być zgłoszona do dobrowolnego ubezpieczenia chorobowego."
             />
           </label>
+
+          {(!insuredOnDate || insuranceTitle === "none") && (
+            <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs dark:border-amber-800/60 dark:bg-amber-950/40">
+              <label className="flex items-center gap-2 font-medium text-amber-900 dark:text-amber-200">
+                <input
+                  type="checkbox"
+                  checked={secondParentInsuredClaim}
+                  onChange={(e) => setSecondParentInsuredClaim(e.target.checked)}
+                  className="h-4 w-4 accent-[#007834]"
+                />
+                <InfoTooltip
+                  label="Matka nieubezpieczona — oblicz uprawnienia ubezpieczonego ojca (art. 31 ust. 3h)"
+                  tooltip="Nawet gdy matka na dzień porodu nie była objęta ubezpieczeniem chorobowym, ubezpieczonemu ojcu dziecka przysługuje zasiłek macierzyński za okres urlopu rodzicielskiego (70%) oraz urlop ojcowski (2 tyg., 100%)."
+                />
+              </label>
+            </div>
+          )}
 
           {/* Podstawa wymiaru zasiłku — w tym indywidualna podstawa wymiaru (pkt f) */}
           <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-3.5 dark:border-emerald-950 dark:bg-[#16241d]">
@@ -527,7 +600,7 @@ export default function IntegratedCalculatorPage() {
                   className={`rounded border px-2 py-1.5 text-[11px] font-semibold transition ${
                     baseMode === m.id
                       ? "border-[#007834] bg-[#007834] text-white"
-                      : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-[#111c17] dark:text-slate-300 dark:hover:border-emerald-700 dark:hover:bg-[#1e3328] dark:hover:text-white"
+                      : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-[#111c17] dark:text-slate-300 dark:hover:bg-[#16241d]"
                   }`}
                 >
                   {m.label}
@@ -826,12 +899,31 @@ export default function IntegratedCalculatorPage() {
             </div>
           </div>
 
+          {insuranceTitle === "jdg" && (
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                <InfoTooltip
+                  label="Zaległość składkowa ZUS na JDG (zł — art. 2a)"
+                  tooltip="Dla osób prowadzących działalność gospodarczą zadłużenie z tytułu składek przekraczające 1% minimalnego wynagrodzenia (48,06 zł w 2026 r.) wstrzymuje wypłatę zasiłku do czasu uregulowania zaległości."
+                />
+              </label>
+              <input
+                type="number"
+                min={0}
+                step={10}
+                value={contributionDebt}
+                onChange={(e) => setContributionDebt(Number(e.target.value))}
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700"
+              />
+            </div>
+          )}
+
           {/* Podział między rodziców */}
           <div className="space-y-2 rounded-lg border border-slate-200 p-3 dark:border-emerald-950">
             <p className="text-xs font-bold text-slate-700 dark:text-slate-300">
               <InfoTooltip
                 label="2. Podział opieki między rodziców (pkt d, e, j)"
-                tooltip="Urlopem macierzyńskim (po pierwszych 14 tygodniach przy porodzie) lub urlopem na warunkach macierzyńskiego i rodzicielskim możecie się podzielić między oboje rodziców."
+                tooltip="Urlopem macierzyńskim (po pierwszych 14 tygodniach przy porodzie, lub po 8 tyg. w sytuacjach szczególnych) lub urlopem na warunkach macierzyńskiego i rodzicielskim możecie się podzielić między oboje rodziców."
               />
             </p>
             <div className="grid gap-3 sm:grid-cols-2">
@@ -840,19 +932,19 @@ export default function IntegratedCalculatorPage() {
                   <InfoTooltip
                     label={
                       scenario === "birth"
-                        ? "Macierzyński matki (min. 14 tyg.)"
+                        ? `Macierzyński matki (min. ${motherEarlyTransfer8Weeks ? 8 : 14} tyg.)`
                         : "Urlop na warunkach macierzyńskiego — Rodzic 1 (tyg.)"
                     }
                     tooltip={
                       scenario === "birth"
-                        ? "Pierwsze 14 tygodni po porodzie matka musi wykorzystać osobiście. Pozostałą część (np. 6 tygodni przy 1 dziecku) może przejąć ojciec dziecka."
-                        : "Liczba tygodni urlopu na warunkach urlopu macierzyńskiego wykorzystana przez pierwszego rodzica adopcyjnego/zastępczego (pozostałą część może wykorzystać drugi rodzic)."
+                        ? "Pierwsze 14 tygodni po porodzie (lub 8 tygodni w razie hospitalizacji/niezdolności matki) matka wykorzystuje osobiście. Pozostałą część może przejąć ojciec."
+                        : "Liczba tygodni urlopu na warunkach urlopu macierzyńskiego wykorzystana przez pierwszego rodzica adopcyjnego/zastępczego."
                     }
                   />
                 </label>
                 <input
                   type="number"
-                  min={scenario === "birth" ? 14 : 0}
+                  min={scenario === "birth" ? (motherEarlyTransfer8Weeks ? 8 : 14) : 0}
                   max={37}
                   value={motherMaternityWeeks}
                   onChange={(e) => setMotherMaternityWeeks(Number(e.target.value))}
@@ -863,7 +955,7 @@ export default function IntegratedCalculatorPage() {
                 <label className="block text-[11px] text-slate-600 dark:text-slate-400">
                   <InfoTooltip
                     label="Rodzicielski dla 2. rodzica (tyg.)"
-                    tooltip="Każdemu z rodziców przysługuje 9 tygodni wyłącznego, nieprzenoszalnego urlopu rodzicielskiego (płatne 70%). Jeśli drugi rodzic ich nie wykorzysta, przepadają."
+                    tooltip="Każdemu z rodziców przysługuje 9 tygodni wyłącznego, nieprzenoszalnego urlopu rodzicielskiego (płatne 70%). Drugi rodzic może też przejąć więcej tygodni ze wspólnej puli (wówczas w wariancie 81,5% część wspólna jest płatna 81,5%, a 9 tyg. nieprzenoszalnych — 70%)."
                   />
                 </label>
                 <input
@@ -876,6 +968,24 @@ export default function IntegratedCalculatorPage() {
                 />
               </div>
             </div>
+
+            {scenario === "birth" && (
+              <div className="space-y-1.5 pt-1">
+                <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300">
+                  <input
+                    type="checkbox"
+                    checked={motherEarlyTransfer8Weeks}
+                    onChange={(e) => setMotherEarlyTransfer8Weeks(e.target.checked)}
+                    className="h-4 w-4 accent-[#007834]"
+                  />
+                  <InfoTooltip
+                    label="Szczególna sytuacja matki: przekazanie macierzyńskiego ojcu już po 8 tyg. (art. 180 § 6/10 KP)"
+                    tooltip="W razie pobytu matki w szpitalu lub orzeczenia o niezdolności do samodzielnej egzystencji ojciec może przejąć urlop macierzyński po wykorzystaniu przez matkę min. 8 tygodni."
+                  />
+                </label>
+              </div>
+            )}
+
             {scenario !== "foster" && (
               <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300">
                 <input
@@ -894,7 +1004,9 @@ export default function IntegratedCalculatorPage() {
 
           {/* Opcje zaawansowane */}
           <div className="space-y-2 rounded-lg border border-slate-200 p-3 dark:border-emerald-950">
-            <p className="text-xs font-bold text-slate-700 dark:text-slate-300">3. Opcje dodatkowe</p>
+            <p className="text-xs font-bold text-slate-700 dark:text-slate-300">
+              3. Opcje dodatkowe i sytuacje szczególne (pkt b, c, i)
+            </p>
             <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300">
               <input
                 type="checkbox"
@@ -981,43 +1093,91 @@ export default function IntegratedCalculatorPage() {
                 className="h-4 w-4 accent-[#007834]"
               />
               <InfoTooltip
-                label="Łączenie urlopu rodzicielskiego z pracą (maks. 1/2 etatu)"
-                tooltip="Pracownik na umowie o pracę może pracować u swojego pracodawcy maks. na pół etatu podczas urlopu rodzicielskiego — urlop ulega wtedy proporcjonalnemu wydłużeniu."
+                label="Łączenie urlopu rodzicielskiego z pracą (maks. 1/2 etatu — pkt c)"
+                tooltip="Pracownik na umowie o pracę może pracować u swojego pracodawcy maks. na pół etatu podczas urlopu rodzicielskiego — urlop ulega wtedy proporcjonalnemu wydłużeniu (art. 182¹ᵉ i 182¹ᶠ KP)."
               />
             </label>
             {combineWork && (
-              <div className="grid grid-cols-2 gap-2 pt-1">
-                <div>
-                  <label className="block text-[10px] text-slate-500 dark:text-slate-400">
-                    <InfoTooltip
-                      label="Wymiar etatu (0.1–0.5)"
-                      tooltip="Część pełnego etatu, na jaką wracasz do pracy podczas urlopu rodzicielskiego (np. 0.5 = pół etatu)."
+              <div className="space-y-2 pt-1">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[10px] text-slate-500 dark:text-slate-400">
+                      <InfoTooltip
+                        label="Wymiar etatu (0.1–0.5)"
+                        tooltip="Część pełnego etatu, na jaką wracasz do pracy podczas urlopu rodzicielskiego (np. 0.5 = pół etatu)."
+                      />
+                    </label>
+                    <input
+                      type="number"
+                      min={0.1}
+                      max={0.5}
+                      step={0.1}
+                      value={workFte}
+                      onChange={(e) => setWorkFte(Number(e.target.value))}
+                      className="w-full rounded border border-slate-300 px-2 py-1 text-xs dark:border-slate-700"
                     />
-                  </label>
-                  <input
-                    type="number"
-                    min={0.1}
-                    max={0.5}
-                    step={0.1}
-                    value={workFte}
-                    onChange={(e) => setWorkFte(Number(e.target.value))}
-                    className="w-full rounded border border-slate-300 px-2 py-1 text-xs dark:border-slate-700"
-                  />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-slate-500 dark:text-slate-400">
+                      <InfoTooltip
+                        label="Liczba tyg. pracy"
+                        tooltip="Przez ile tygodni urlopu rodzicielskiego planujesz łączyć opiekę nad dzieckiem z pracą na część etatu."
+                      />
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={58}
+                      value={workWeeks}
+                      onChange={(e) => setWorkWeeks(Number(e.target.value))}
+                      className="w-full rounded border border-slate-300 px-2 py-1 text-xs dark:border-slate-700"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-[10px] text-slate-500 dark:text-slate-400">
+                <label className="flex items-center gap-2 text-[11px] text-slate-700 dark:text-slate-300">
+                  <input
+                    type="checkbox"
+                    checked={workDuringExtendedPart}
+                    onChange={(e) => setWorkDuringExtendedPart(e.target.checked)}
+                    className="h-3.5 w-3.5 accent-[#007834]"
+                  />
+                  <InfoTooltip
+                    label="Praca na część etatu również podczas części wydłużonej (art. 182¹ᶠ § 7 KP)"
+                    tooltip="Zaznaczone (art. 182¹ᶠ § 7 KP): pracujesz również w okresie wydłużenia, więc wydłużenie wynosi T × etat / (1 - etat). Odznaczone (art. 182¹ᶠ § 2 KP): w okresie wydłużenia nie pracujesz, a wydłużenie wynosi T × etat."
+                  />
+                </label>
+              </div>
+            )}
+
+            {scenario === "birth" && (
+              <div className="space-y-2 border-t border-slate-200 pt-2 dark:border-slate-800">
+                <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300">
+                  <input
+                    type="checkbox"
+                    checked={stillbirthOrEarlyDeath}
+                    onChange={(e) => setStillbirthOrEarlyDeath(e.target.checked)}
+                    className="h-4 w-4 accent-[#007834]"
+                  />
+                  <InfoTooltip
+                    label="Szczególna sytuacja: urodzenie martwego dziecka / zgon w 1–8 tyg. (art. 180¹ § 1 KP)"
+                    tooltip="W razie urodzenia martwego dziecka lub zgonu dziecka przed upływem 8 tygodni życia przysługuje zasiłek macierzyński (100%) za okres 8 tygodni urlopu macierzyńskiego po porodzie (nie krócej niż 7 dni od dnia zgonu)."
+                  />
+                </label>
+
+                <div className="flex items-center justify-between gap-2">
+                  <label className="text-[11px] text-slate-600 dark:text-slate-400">
                     <InfoTooltip
-                      label="Liczba tyg. pracy"
-                      tooltip="Przez ile tygodni urlopu rodzicielskiego planujesz łączyć opiekę nad dzieckiem z pracą na część etatu."
+                      label="Urlop macierzyński przed porodem (0–6 tyg., art. 180 § 2 KP)"
+                      tooltip="Kobieta w ciąży może wykorzystać do 6 tygodni urlopu macierzyńskiego jeszcze przed przewidywaną datą porodu — po porodzie przysługuje wówczas pozostała część wymiaru."
                     />
                   </label>
                   <input
                     type="number"
-                    min={1}
-                    max={41}
-                    value={workWeeks}
-                    onChange={(e) => setWorkWeeks(Number(e.target.value))}
-                    className="w-full rounded border border-slate-300 px-2 py-1 text-xs dark:border-slate-700"
+                    min={0}
+                    max={6}
+                    value={preBirthWeeks}
+                    onChange={(e) => setPreBirthWeeks(Number(e.target.value))}
+                    className="w-20 rounded border border-slate-300 px-2 py-1 text-xs dark:border-slate-700"
                   />
                 </div>
               </div>
@@ -1080,6 +1240,14 @@ export default function IntegratedCalculatorPage() {
                       </p>
                     </div>
                   </div>
+
+                  {result.minimum_benefit_top_up_applied && (
+                    <div className="mt-3 rounded-lg border border-emerald-300 bg-emerald-50 p-3 text-xs font-medium text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200">
+                      Zastosowano ustawowe podwyższenie zasiłku macierzyńskiego do kwoty świadczenia
+                      rodzicielskiego (min. 1 000,00 zł miesięcznie — art. 31 ust. 3a ustawy
+                      zasiłkowej).
+                    </div>
+                  )}
 
                   {/* Szczegółowe wyjaśnienie podstawy wymiaru zasiłku (pkt f) */}
                   {result.benefit_base_explanation && (

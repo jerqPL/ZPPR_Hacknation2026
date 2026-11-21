@@ -75,11 +75,16 @@ class PregnancyBenefitRequest(BaseModel):
     insurance_title: InsuranceTitle = InsuranceTitle.UOP
     has_voluntary_sickness_insurance: bool = True
     insurance_days: int = Field(180, ge=0, description="Liczba dni nieprzerwanego ubezpieczenia chorobowego")
+    waiting_period_exempt: bool = Field(
+        False,
+        description="Zwolnienie z okresu wyczekiwania (art. 4 ust. 3 ustawy zasiłkowej — np. 10 lat wcześniejszego obowiązkowego ubezpieczenia lub absolwent w ciągu 90 dni)",
+    )
     gross_monthly_salary: float = Field(6500.0, ge=0)
     custom_benefit_base: Optional[float] = Field(None, ge=0)
     has_code_b: bool = True
     age_over_50: bool = False
     employer_insured_count: int = Field(25, ge=0)
+    contribution_debt_pln: float = Field(0.0, ge=0, description="Kwota zadłużenia z tytułu składek ZUS (dla JDG — art. 2a)")
     employment_terminated_special: bool = False
     termination_reason: Optional[str] = Field(
         None,
@@ -97,6 +102,9 @@ class PregnancyBenefitResponse(BaseModel):
     benefit_base_explanation: Optional[str] = None
     daily_benefit_gross: float
     monthly_benefit_gross: float
+    rehabilitation_monthly_gross: float = 0.0
+    rehabilitation_daily_gross: float = 0.0
+    rehabilitation_max_days: int = 360
     max_benefit_days: int
     employer_pay_days: int
     payer: str
@@ -108,6 +116,10 @@ class IntegratedCalculatorRequest(BaseModel):
     scenario: BenefitScenario = BenefitScenario.BIRTH
     insurance_title: InsuranceTitle = InsuranceTitle.UOP
     has_sickness_insurance_on_birth_date: bool = True
+    second_parent_insured_claim: bool = Field(
+        False,
+        description="Gdy matka nie podlega ubezpieczeniu chorobowemu w dniu porodu, oblicz uprawnienia ubezpieczonego ojca (art. 31 ust. 3h oraz art. 182³ KP)",
+    )
     children_count: int = Field(1, ge=1, le=6)
     child_age_years: Optional[float] = Field(None, ge=0, le=18)
     foster_family_type: FosterFamilyType = FosterFamilyType.NON_PROFESSIONAL
@@ -116,6 +128,20 @@ class IntegratedCalculatorRequest(BaseModel):
     previously_used_foster_maternity_weeks: int = Field(0, ge=0, le=37)
     previously_used_foster_parental_weeks: int = Field(0, ge=0, le=67)
     has_za_zyciem_certificate: bool = False
+    stillbirth_or_early_death: bool = Field(
+        False,
+        description="Urodzenie martwego dziecka lub zgon dziecka przed upływem 8 tygodni życia (art. 180¹ § 1 KP — 8 tyg. urlopu macierzyńskiego, 100%)",
+    )
+    mother_early_transfer_8_weeks: bool = Field(
+        False,
+        description="Szczególna sytuacja z art. 180 § 6, § 10, § 13 KP (hospitalizacja matki / niezdolność do samodzielnej egzystencji) — przekazanie urlopu ojcu po min. 8 tyg.",
+    )
+    pre_birth_maternity_weeks: int = Field(
+        0,
+        ge=0,
+        le=6,
+        description="Liczba tygodni urlopu macierzyńskiego wykorzystana przed przewidywaną datą porodu (maks. 6 tyg. — art. 180 § 2 KP)",
+    )
 
     # Wcześniak / hospitalizacja -> uzupełniający urlop macierzyński
     premature_or_hospitalized: bool = False
@@ -140,9 +166,14 @@ class IntegratedCalculatorRequest(BaseModel):
     combine_parental_with_work: bool = False
     work_fte_fraction: float = Field(0.0, ge=0.0, le=0.5)
     combined_work_weeks: int = Field(0, ge=0)
+    work_during_extended_part: bool = Field(
+        True,
+        description="True = praca również w okresie wydłużenia (art. 182¹ᶠ § 7 KP: W*fte/(1-fte)), False = bez pracy w okresie wydłużenia (art. 182¹ᶠ § 2 KP: W*fte)",
+    )
 
-    # Płatnik
+    # Płatnik i zadłużenie JDG
     employer_insured_count: int = Field(25, ge=0)
+    contribution_debt_pln: float = Field(0.0, ge=0)
 
 
 class LeaveBreakdownItem(BaseModel):
@@ -162,6 +193,7 @@ class IntegratedCalculatorResponse(BaseModel):
     benefit_base_parent2: float
     benefit_base_explanation: Optional[str] = None
     benefit_base_parent2_explanation: Optional[str] = None
+    minimum_benefit_top_up_applied: bool = False
     total_weeks: float
     maternity_weeks: int
     supplementary_maternity_weeks: int
@@ -173,4 +205,5 @@ class IntegratedCalculatorResponse(BaseModel):
     total_estimated_gross_pln: float
     warnings: list[str]
     required_documents: list[str]
+
 
