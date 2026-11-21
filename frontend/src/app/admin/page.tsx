@@ -56,24 +56,24 @@ export default function AdminPanelPage() {
       />
 
       {!params ? (
-        <p className="text-sm text-[#403D39]/80">Ładowanie parametrów z API...</p>
+        <p className="text-sm text-slate-500 dark:text-slate-400">Ładowanie parametrów z API...</p>
       ) : (
         <form
           onSubmit={handleSave}
-          className="space-y-6 rounded-xl border border-[#CCC5B9] bg-[#FFFCF2] p-6 shadow-xs"
+          className="space-y-6 rounded-xl border border-slate-200 dark:border-emerald-950 bg-white dark:bg-[#111c17] p-6 shadow-xs"
         >
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <div>
-              <label className="block text-xs font-semibold text-[#262522]">Rok obowiązywania</label>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">Rok obowiązywania</label>
               <input
                 type="number"
                 value={params.year}
                 onChange={(e) => updateNum("year", e.target.value)}
-                className="mt-1 w-full rounded-lg border border-[#CCC5B9] px-3 py-2 text-sm"
+                className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-[#262522]">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
                 Płaca minimalna brutto (zł)
               </label>
               <input
@@ -81,11 +81,11 @@ export default function AdminPanelPage() {
                 step="0.01"
                 value={params.minimum_wage_gross}
                 onChange={(e) => updateNum("minimum_wage_gross", e.target.value)}
-                className="mt-1 w-full rounded-lg border border-[#CCC5B9] px-3 py-2 text-sm"
+                className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-[#262522]">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
                 Składki społeczne pracownika (ułamek, np. 0.1371)
               </label>
               <input
@@ -93,12 +93,12 @@ export default function AdminPanelPage() {
                 step="0.0001"
                 value={params.employee_social_security_rate}
                 onChange={(e) => updateNum("employee_social_security_rate", e.target.value)}
-                className="mt-1 w-full rounded-lg border border-[#CCC5B9] px-3 py-2 text-sm"
+                className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-[#262522]">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
                 Stawka łączona (wniosek w 21 dni, np. 0.815)
               </label>
               <input
@@ -106,11 +106,11 @@ export default function AdminPanelPage() {
                 step="0.005"
                 value={params.combined_21_days_rate}
                 onChange={(e) => updateNum("combined_21_days_rate", e.target.value)}
-                className="mt-1 w-full rounded-lg border border-[#CCC5B9] px-3 py-2 text-sm"
+                className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-[#262522]">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
                 Stawka rodzicielskiego (np. 0.7)
               </label>
               <input
@@ -118,52 +118,52 @@ export default function AdminPanelPage() {
                 step="0.01"
                 value={params.parental_rate_standard}
                 onChange={(e) => updateNum("parental_rate_standard", e.target.value)}
-                className="mt-1 w-full rounded-lg border border-[#CCC5B9] px-3 py-2 text-sm"
+                className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-[#262522]">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
                 Maks. okres zasiłkowy w ciąży (dni)
               </label>
               <input
                 type="number"
                 value={params.sickness_benefit_pregnancy_max_days}
                 onChange={(e) => updateNum("sickness_benefit_pregnancy_max_days", e.target.value)}
-                className="mt-1 w-full rounded-lg border border-[#CCC5B9] px-3 py-2 text-sm"
+                className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-[#262522]">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
                 Urlop rodzicielski — 1 dziecko (tyg.)
               </label>
               <input
                 type="number"
                 value={params.parental_weeks_single}
                 onChange={(e) => updateNum("parental_weeks_single", e.target.value)}
-                className="mt-1 w-full rounded-lg border border-[#CCC5B9] px-3 py-2 text-sm"
+                className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-[#262522]">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
                 Część nieprzenoszalna rodzica (tyg.)
               </label>
               <input
                 type="number"
                 value={params.parental_non_transferable_weeks}
                 onChange={(e) => updateNum("parental_non_transferable_weeks", e.target.value)}
-                className="mt-1 w-full rounded-lg border border-[#CCC5B9] px-3 py-2 text-sm"
+                className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-[#262522]">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
                 Próg płatnika składek (liczba ubezpieczonych)
               </label>
               <input
                 type="number"
                 value={params.payer_employee_threshold}
                 onChange={(e) => updateNum("payer_employee_threshold", e.target.value)}
-                className="mt-1 w-full rounded-lg border border-[#CCC5B9] px-3 py-2 text-sm"
+                className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
               />
             </div>
           </div>
@@ -172,7 +172,7 @@ export default function AdminPanelPage() {
             <button
               type="submit"
               disabled={saving}
-              className="rounded-lg bg-[#000000] px-5 py-2.5 text-sm font-semibold text-[#FFFCF2] transition hover:bg-[#262522] disabled:opacity-50"
+              className="rounded-lg bg-[#007834] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#005a27] disabled:opacity-50"
             >
               {saving ? "Zapisywanie..." : "Zapisz parametry"}
             </button>
@@ -180,14 +180,14 @@ export default function AdminPanelPage() {
               type="button"
               disabled={saving}
               onClick={handleReset}
-              className="rounded-lg border border-[#CCC5B9] px-4 py-2.5 text-sm font-semibold text-[#262522] hover:bg-[#F5F1E6]"
+              className="rounded-lg border border-slate-300 dark:border-slate-700 px-4 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-[#16241d] dark:bg-[#16241d]"
             >
               Przywróć domyślne (2026)
             </button>
           </div>
 
           {message && (
-            <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs font-medium text-emerald-900">
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 dark:border-emerald-800/60 dark:bg-emerald-950/40 p-3 text-xs font-medium text-emerald-900 dark:text-emerald-200">
               {message}
             </div>
           )}

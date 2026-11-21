@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { ThemeProvider } from "@/components/ThemeContext";
 import { UserProvider } from "@/components/UserContext";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
@@ -16,15 +17,17 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pl">
+    <html lang="pl" suppressHydrationWarning>
       <body className="flex min-h-screen flex-col">
-        <UserProvider>
-          <Navbar />
-          <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-6">
-            {children}
-          </main>
-          <Footer />
-        </UserProvider>
+        <ThemeProvider>
+          <UserProvider>
+            <Navbar />
+            <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-6">
+              {children}
+            </main>
+            <Footer />
+          </UserProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

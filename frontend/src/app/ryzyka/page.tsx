@@ -24,16 +24,16 @@ export default function RisksPage() {
         {risks.map((risk) => (
           <article
             key={risk.id}
-            className="rounded-xl border border-[#CCC5B9] bg-[#FFFCF2] p-5 shadow-xs"
+            className="rounded-xl border border-slate-200 dark:border-emerald-950 bg-white dark:bg-[#111c17] p-5 shadow-xs"
           >
             <div className="flex items-center justify-between gap-2">
               <span
                 className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold uppercase ${
                   risk.severity === "high"
-                    ? "bg-[#000000] text-[#FFFCF2]"
+                    ? "bg-red-100 text-red-800 dark:text-red-200"
                     : risk.severity === "medium"
-                    ? "bg-[#CCC5B9] text-[#000000]"
-                    : "bg-[#F5F1E6] border border-[#CCC5B9] text-[#000000]"
+                    ? "bg-amber-100 text-amber-800"
+                    : "bg-sky-100 text-sky-800"
                 }`}
               >
                 {risk.severity === "high"
@@ -42,11 +42,11 @@ export default function RisksPage() {
                   ? "Ważny termin"
                   : "Informacja prawna"}
               </span>
-              <span className="text-[11px] text-[#403D39]/80">{risk.applies_to.join(" • ")}</span>
+              <span className="text-[11px] text-slate-500 dark:text-slate-400">{risk.applies_to.join(" • ")}</span>
             </div>
-            <h2 className="mt-3 text-base font-bold text-[#000000]">{risk.title}</h2>
-            <p className="mt-2 text-xs leading-relaxed text-[#403D39]">{risk.description}</p>
-            <div className="mt-3 rounded-lg bg-[#F5F1E6] p-3 text-xs text-[#000000]">
+            <h2 className="mt-3 text-base font-bold text-slate-900 dark:text-slate-100">{risk.title}</h2>
+            <p className="mt-2 text-xs leading-relaxed text-slate-600 dark:text-slate-400">{risk.description}</p>
+            <div className="mt-3 rounded-lg bg-[#e6f4ec] dark:bg-[#007834]/20 p-3 text-xs text-[#005a27] dark:text-emerald-300">
               <strong>Jak uniknąć problemu:</strong> {risk.how_to_avoid}
             </div>
           </article>

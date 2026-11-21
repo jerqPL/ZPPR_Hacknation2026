@@ -74,14 +74,14 @@ export default function HomePage() {
   return (
     <div className="space-y-10">
       {/* Hero section */}
-      <section className="rounded-2xl border border-[#000000] bg-[#000000] p-6 text-[#FFFCF2] sm:p-10">
-        <span className="inline-block rounded-full border border-[#CCC5B9]/40 bg-[#FFFCF2]/10 px-3 py-1 text-xs font-semibold tracking-wide text-[#CCC5B9]">
+      <section className="rounded-2xl bg-gradient-to-br from-[#007834] to-[#004d21] p-6 text-white shadow-md sm:p-10">
+        <span className="inline-block rounded-full bg-white dark:bg-[#111c17]/15 px-3 py-1 text-xs font-semibold tracking-wide">
           HackNation 2026 • Wyzwanie ZUS
         </span>
-        <h1 className="mt-4 text-3xl font-bold tracking-tight text-[#FFFCF2] sm:text-4xl">
+        <h1 className="mt-4 text-3xl font-bold tracking-tight sm:text-4xl">
           Zasiłkowy Przewodnik Przyszłego Rodzica
         </h1>
-        <p className="mt-3 max-w-2xl text-sm leading-relaxed text-[#CCC5B9] sm:text-base">
+        <p className="mt-3 max-w-2xl text-sm leading-relaxed text-emerald-50 sm:text-base">
           Sprawdź swoje uprawnienia z ubezpieczenia chorobowego w ciąży i po narodzinach lub
           przyjęciu dziecka na wychowanie. Zaplanuj urlopy, oblicz wysokość zasiłku i przygotuj
           komplet dokumentów bez stresu i niespodzianek.
@@ -89,14 +89,14 @@ export default function HomePage() {
         <div className="mt-6 flex flex-wrap gap-3">
           <Link
             href="/kalkulator"
-            className="inline-flex items-center gap-2 rounded-md bg-[#FFFCF2] px-5 py-2.5 text-sm font-semibold text-[#000000] transition hover:bg-[#CCC5B9]"
+            className="inline-flex items-center gap-2 rounded-lg bg-white dark:bg-[#111c17] px-5 py-2.5 text-sm font-semibold text-[#005a27] dark:text-emerald-300 shadow-sm transition hover:bg-emerald-50"
           >
             Otwórz zintegrowany kalkulator
             <ArrowRight className="h-4 w-4" />
           </Link>
           <Link
             href="/pue-zus"
-            className="inline-flex items-center gap-2 rounded-md border border-[#CCC5B9]/50 bg-transparent px-5 py-2.5 text-sm font-semibold text-[#FFFCF2] transition hover:border-[#FFFCF2] hover:bg-[#FFFCF2]/10"
+            className="inline-flex items-center gap-2 rounded-lg border border-white/40 bg-white dark:bg-[#111c17]/10 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-white dark:bg-[#111c17]/20"
           >
             Zaloguj przez mObywatel (symulacja)
           </Link>
@@ -105,8 +105,8 @@ export default function HomePage() {
 
       {/* Modules grid */}
       <section>
-        <h2 className="text-xl font-bold tracking-tight text-[#000000]">Moduły przewodnika</h2>
-        <p className="mt-1 text-sm text-[#403D39]">
+        <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">Moduły przewodnika</h2>
+        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
           Wybierz ścieżkę dopasowaną do Twojego etapu — od planowania ciąży po podział urlopu
           rodzicielskiego i powrót do pracy.
         </p>
@@ -118,21 +118,23 @@ export default function HomePage() {
               <Link
                 key={m.href}
                 href={m.href}
-                className="group flex flex-col justify-between rounded-xl border border-[#CCC5B9] bg-[#FFFCF2] p-5 transition hover:border-[#000000] hover:bg-[#F5F1E6]"
+                className="group flex flex-col justify-between rounded-xl border border-slate-200 dark:border-emerald-950 bg-white dark:bg-[#111c17] p-5 shadow-xs transition hover:border-[#007834] hover:shadow-md"
               >
                 <div>
                   <div className="flex items-center justify-between">
-                    <span className="flex h-10 w-10 items-center justify-center rounded-md bg-[#000000] text-[#FFFCF2]">
+                    <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#e6f4ec] dark:bg-[#007834]/20 text-[#007834] dark:text-emerald-400">
                       <Icon className="h-5 w-5" />
                     </span>
-                    <span className="rounded-full border border-[#CCC5B9] bg-[#F5F1E6] px-2.5 py-0.5 text-[11px] font-medium text-[#403D39]">
+                    <span className="rounded-full bg-slate-100 dark:bg-slate-800 px-2.5 py-0.5 text-[11px] font-medium text-slate-600 dark:text-slate-400">
                       {m.tag}
                     </span>
                   </div>
-                  <h3 className="mt-4 text-base font-bold text-[#000000]">{m.title}</h3>
-                  <p className="mt-2 text-xs leading-relaxed text-[#403D39]">{m.desc}</p>
+                  <h3 className="mt-4 text-base font-bold text-slate-900 dark:text-slate-100 group-hover:text-[#007834] dark:text-emerald-400">
+                    {m.title}
+                  </h3>
+                  <p className="mt-2 text-xs leading-relaxed text-slate-600 dark:text-slate-400">{m.desc}</p>
                 </div>
-                <div className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-[#000000]">
+                <div className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-[#007834] dark:text-emerald-400">
                   Przejdź
                   <ArrowRight className="h-3.5 w-3.5 transition group-hover:translate-x-0.5" />
                 </div>

@@ -18,27 +18,29 @@ const OFFICIAL_SOURCES = [
 
 export function Footer() {
   return (
-    <footer className="mt-16 border-t border-[#CCC5B9] bg-[#F5F1E6]">
+    <footer className="mt-16 border-t border-slate-200 bg-white dark:border-emerald-950 dark:bg-[#0f1914]">
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
         <div className="grid gap-6 md:grid-cols-2">
           <div>
-            <h2 className="text-sm font-bold text-[#000000]">
+            <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">
               Zasiłkowy Przewodnik Przyszłego Rodzica (ZPPR)
             </h2>
-            <p className="mt-2 text-xs leading-relaxed text-[#403D39]">
+            <p className="mt-2 text-xs leading-relaxed text-slate-600 dark:text-slate-400">
               Prototyp narzędzia informacyjno-kalkulacyjnego przygotowany na HackNation 2026
               (wyzwanie ZUS). Logowanie mObywatel, pobieranie danych ZUS, stan zadłużenia,
               e-ZLA, PUE/eZUS oraz wysyłka wniosków działają w trybie symulacji.
             </p>
-            <p className="mt-2 text-xs text-[#403D39]/80">
-              <strong className="text-[#000000]">Zakres użycia AI:</strong> Szkielet aplikacji
-              wykorzystuje deterministyczny silnik reguł prawnych (bez halucynacji w wyliczeniach);
-              architektura przewiduje opcjonalne wsparcie AI do OCR skanowanych wniosków PDF oraz
-              asystenta wyjaśnień.
+            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+              <strong className="text-slate-700 dark:text-slate-200">Zakres użycia AI:</strong>{" "}
+              Szkielet aplikacji wykorzystuje deterministyczny silnik reguł prawnych (bez
+              halucynacji w wyliczeniach); architektura przewiduje opcjonalne wsparcie AI do OCR
+              skanowanych wniosków PDF oraz asystenta wyjaśnień.
             </p>
           </div>
           <div>
-            <h3 className="text-sm font-bold text-[#000000]">Oficjalne źródła informacji</h3>
+            <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+              Oficjalne źródła informacji
+            </h3>
             <ul className="mt-2 space-y-1.5 text-xs">
               {OFFICIAL_SOURCES.map((link) => (
                 <li key={link.href}>
@@ -46,7 +48,7 @@ export function Footer() {
                     href={link.href}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex items-center gap-1.5 font-medium text-[#000000] underline decoration-[#CCC5B9] underline-offset-4 transition hover:decoration-[#000000]"
+                    className="inline-flex items-center gap-1.5 text-[#007834] hover:underline dark:text-emerald-400"
                   >
                     <span>{link.label}</span>
                     <ExternalLink className="h-3 w-3" />

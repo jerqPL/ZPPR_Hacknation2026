@@ -51,16 +51,16 @@ export default function PueZusSimulationPage() {
       />
 
       {/* Wybór persony mObywatel */}
-      <section className="rounded-xl border border-[#CCC5B9] bg-[#FFFCF2] p-6 shadow-xs">
+      <section className="rounded-xl border border-slate-200 dark:border-emerald-950 bg-white dark:bg-[#111c17] p-6 shadow-xs">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-base font-bold text-[#000000]">
+          <h2 className="text-base font-bold text-slate-900 dark:text-slate-100">
             1. Logowanie przez mObywatel (wyłącznie symulacja)
           </h2>
           {user && (
             <button
               type="button"
               onClick={logout}
-              className="rounded-lg border border-[#CCC5B9] px-3 py-1.5 text-xs font-semibold text-[#262522] hover:bg-[#F5F1E6]"
+              className="rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-[#16241d] dark:bg-[#16241d]"
             >
               Wyloguj ({user.full_name})
             </button>
@@ -78,13 +78,13 @@ export default function PueZusSimulationPage() {
                 onClick={() => loginAs(p.id)}
                 className={`rounded-xl border p-4 text-left transition ${
                   active
-                    ? "border-[#000000] bg-[#F5F1E6] ring-1 ring-[#000000]"
-                    : "border-[#CCC5B9] hover:border-[#000000]/60 hover:bg-[#F5F1E6]"
+                    ? "border-[#007834] bg-[#e6f4ec] dark:bg-[#007834]/20 ring-1 ring-[#007834]"
+                    : "border-slate-200 dark:border-emerald-950 hover:border-[#007834]/60 hover:bg-slate-50 dark:hover:bg-[#16241d] dark:bg-[#16241d]"
                 }`}
               >
-                <p className="text-sm font-bold text-[#000000]">{p.full_name}</p>
-                <p className="mt-1 text-xs text-[#403D39]">{p.role_label}</p>
-                <p className="mt-2 text-[11px] font-semibold text-[#000000]">
+                <p className="text-sm font-bold text-slate-900 dark:text-slate-100">{p.full_name}</p>
+                <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">{p.role_label}</p>
+                <p className="mt-2 text-[11px] font-semibold text-[#005a27] dark:text-emerald-300">
                   {active ? "Zalogowano przez mObywatel" : "Kliknij, aby zalogować"}
                 </p>
               </button>
@@ -96,24 +96,24 @@ export default function PueZusSimulationPage() {
       {user && (
         <div className="mt-8 grid gap-6 lg:grid-cols-2">
           {/* Dane o ubezpieczeniu */}
-          <section className="rounded-xl border border-[#CCC5B9] bg-[#FFFCF2] p-6 shadow-xs">
-            <h3 className="text-base font-bold text-[#000000]">2. Dane pobrane z ZUS</h3>
+          <section className="rounded-xl border border-slate-200 dark:border-emerald-950 bg-white dark:bg-[#111c17] p-6 shadow-xs">
+            <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">2. Dane pobrane z ZUS</h3>
             <dl className="mt-3 space-y-2 text-xs">
-              <div className="flex justify-between border-b border-[#CCC5B9]/60 py-1.5">
-                <dt className="text-[#403D39]/80">Ubezpieczony</dt>
-                <dd className="font-semibold text-[#000000]">
+              <div className="flex justify-between border-b border-slate-100 dark:border-slate-800 py-1.5">
+                <dt className="text-slate-500 dark:text-slate-400">Ubezpieczony</dt>
+                <dd className="font-semibold text-slate-900 dark:text-slate-100">
                   {user.full_name} ({user.pesel_masked})
                 </dd>
               </div>
-              <div className="flex justify-between border-b border-[#CCC5B9]/60 py-1.5">
-                <dt className="text-[#403D39]/80">Tytuł ubezpieczenia</dt>
-                <dd className="font-semibold uppercase text-[#000000]">{user.insurance_title}</dd>
+              <div className="flex justify-between border-b border-slate-100 dark:border-slate-800 py-1.5">
+                <dt className="text-slate-500 dark:text-slate-400">Tytuł ubezpieczenia</dt>
+                <dd className="font-semibold uppercase text-slate-900 dark:text-slate-100">{user.insurance_title}</dd>
               </div>
-              <div className="flex justify-between border-b border-[#CCC5B9]/60 py-1.5">
-                <dt className="text-[#403D39]/80">Ubezpieczenie chorobowe</dt>
+              <div className="flex justify-between border-b border-slate-100 dark:border-slate-800 py-1.5">
+                <dt className="text-slate-500 dark:text-slate-400">Ubezpieczenie chorobowe</dt>
                 <dd
                   className={`font-bold ${
-                    user.has_sickness_insurance ? "text-[#000000]" : "text-red-700"
+                    user.has_sickness_insurance ? "text-emerald-700" : "text-red-700"
                   }`}
                 >
                   {user.has_sickness_insurance
@@ -121,15 +121,15 @@ export default function PueZusSimulationPage() {
                     : "Brak ubezpieczenia chorobowego"}
                 </dd>
               </div>
-              <div className="flex justify-between border-b border-[#CCC5B9]/60 py-1.5">
-                <dt className="text-[#403D39]/80">Płatnik składek</dt>
-                <dd className="font-semibold text-[#000000]">
+              <div className="flex justify-between border-b border-slate-100 dark:border-slate-800 py-1.5">
+                <dt className="text-slate-500 dark:text-slate-400">Płatnik składek</dt>
+                <dd className="font-semibold text-slate-900 dark:text-slate-100">
                   {user.employer_name || "Brak"} ({user.employer_insured_count} ubezp.)
                 </dd>
               </div>
               <div className="flex justify-between py-1.5">
-                <dt className="text-[#403D39]/80">Deklarowane brutto</dt>
-                <dd className="font-semibold text-[#000000]">
+                <dt className="text-slate-500 dark:text-slate-400">Deklarowane brutto</dt>
+                <dd className="font-semibold text-slate-900 dark:text-slate-100">
                   {user.declared_gross_salary.toFixed(2)} zł
                 </dd>
               </div>
@@ -137,8 +137,8 @@ export default function PueZusSimulationPage() {
           </section>
 
           {/* Stan zadłużenia */}
-          <section className="rounded-xl border border-[#CCC5B9] bg-[#FFFCF2] p-6 shadow-xs">
-            <h3 className="text-base font-bold text-[#000000]">
+          <section className="rounded-xl border border-slate-200 dark:border-emerald-950 bg-white dark:bg-[#111c17] p-6 shadow-xs">
+            <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
               3. Stan zadłużenia z tytułu składek (symulacja)
             </h3>
             {debt ? (
@@ -146,8 +146,8 @@ export default function PueZusSimulationPage() {
                 <div
                   className={`rounded-lg p-4 ${
                     debt.has_debt
-                      ? "border border-red-200 bg-red-50 text-red-900"
-                      : "border border-[#000000] bg-[#F5F1E6] text-[#000000]"
+                      ? "border border-red-200 bg-red-50 dark:border-red-800/60 dark:bg-red-950/40 text-red-900 dark:text-red-200"
+                      : "border border-emerald-200 bg-emerald-50 dark:border-emerald-800/60 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-200"
                   }`}
                 >
                   <p className="text-sm font-bold">
@@ -157,19 +157,19 @@ export default function PueZusSimulationPage() {
                   </p>
                   <p className="mt-1">{debt.impact_warning}</p>
                 </div>
-                <p className="text-[#403D39]/80">
+                <p className="text-slate-500 dark:text-slate-400">
                   Nr symulowanego zaświadczenia: <strong>{debt.certificate_number}</strong> (stan na{" "}
                   {debt.checked_at})
                 </p>
               </div>
             ) : (
-              <p className="mt-3 text-xs text-[#403D39]/80">Ładowanie stanu zadłużenia...</p>
+              <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">Ładowanie stanu zadłużenia...</p>
             )}
           </section>
 
           {/* Podgląd e-ZLA */}
-          <section className="rounded-xl border border-[#CCC5B9] bg-[#FFFCF2] p-6 shadow-xs">
-            <h3 className="text-base font-bold text-[#000000]">
+          <section className="rounded-xl border border-slate-200 dark:border-emerald-950 bg-white dark:bg-[#111c17] p-6 shadow-xs">
+            <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
               4. Podgląd zaświadczeń lekarskich e-ZLA (symulacja)
             </h3>
             {ezla.length > 0 ? (
@@ -177,67 +177,67 @@ export default function PueZusSimulationPage() {
                 {ezla.map((item) => (
                   <div
                     key={item.certificate_number}
-                    className="rounded-lg border border-[#CCC5B9] p-3 text-xs"
+                    className="rounded-lg border border-slate-200 dark:border-emerald-950 p-3 text-xs"
                   >
                     <div className="flex items-center justify-between">
-                      <span className="font-mono font-bold text-[#000000]">
+                      <span className="font-mono font-bold text-slate-900 dark:text-slate-100">
                         {item.certificate_number}
                       </span>
-                      <span className="rounded bg-[#F5F1E6] px-2 py-0.5 font-bold text-[#000000]">
+                      <span className="rounded bg-[#e6f4ec] dark:bg-[#007834]/20 px-2 py-0.5 font-bold text-[#005a27] dark:text-emerald-300">
                         Kod: {item.letter_code || "brak"}
                       </span>
                     </div>
-                    <p className="mt-1 text-[#262522]">
+                    <p className="mt-1 text-slate-700 dark:text-slate-300">
                       Okres: <strong>{item.date_from}</strong> – <strong>{item.date_to}</strong> (
                       {item.days} dni)
                     </p>
-                    <p className="mt-0.5 text-[#403D39]/80">
+                    <p className="mt-0.5 text-slate-500 dark:text-slate-400">
                       {item.doctor_specialty} • {item.status}
                     </p>
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="mt-3 text-xs text-[#403D39]/80">
+              <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
                 Brak wystawionych zaświadczeń e-ZLA dla wybranego profilu.
               </p>
             )}
           </section>
 
           {/* Połączenie z PUE/eZUS */}
-          <section className="rounded-xl border border-[#CCC5B9] bg-[#FFFCF2] p-6 shadow-xs">
-            <h3 className="text-base font-bold text-[#000000]">
+          <section className="rounded-xl border border-slate-200 dark:border-emerald-950 bg-white dark:bg-[#111c17] p-6 shadow-xs">
+            <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
               5. Połączenie z PUE/eZUS — zadaj pytanie (symulacja)
             </h3>
             <form onSubmit={handleInquiry} className="mt-3 space-y-3">
               <div>
-                <label className="block text-xs font-semibold text-[#262522]">Temat</label>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">Temat</label>
                 <input
                   type="text"
                   required
                   value={subject}
                   onChange={(e) => setSubject(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-[#CCC5B9] px-3 py-2 text-xs"
+                  className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-xs"
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-[#262522]">Treść pytania</label>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">Treść pytania</label>
                 <textarea
                   rows={3}
                   required
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-[#CCC5B9] px-3 py-2 text-xs"
+                  className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-xs"
                 />
               </div>
               <button
                 type="submit"
-                className="rounded-lg bg-[#000000] px-4 py-2 text-xs font-semibold text-[#FFFCF2] hover:bg-[#262522]"
+                className="rounded-lg bg-[#007834] px-4 py-2 text-xs font-semibold text-white hover:bg-[#005a27]"
               >
                 Wyślij zapytanie przez PUE/eZUS (symulacja)
               </button>
               {ticketInfo && (
-                <p className="rounded bg-[#F5F1E6] border border-[#000000] p-2.5 text-xs text-[#000000]">{ticketInfo}</p>
+                <p className="rounded bg-emerald-50 p-2.5 text-xs text-emerald-900 dark:text-emerald-200">{ticketInfo}</p>
               )}
             </form>
           </section>
