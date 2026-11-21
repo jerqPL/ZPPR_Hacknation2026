@@ -17,7 +17,7 @@ from app.services.pdf_parser_service import analyze_pdf_bytes, is_tesseract_avai
 from tests.benchmark_sprawy_ocr import (
     SPRAWY_DIR,
     build_sprawy_expectations,
-    evaluate_result,
+    evaluate_categories,
     run_benchmark,
 )
 
@@ -39,10 +39,11 @@ STRATIFIED_SAMPLE_FILES: tuple[str, ...] = (
 
 @pytest.mark.skipif(not SPRAWY_DIR.exists(), reason="Brak folderu Sprawy/ w repozytorium.")
 @pytest.mark.skipif(not is_tesseract_available(), reason="Brak zainstalowanego tesseract-ocr.")
-def test_sprawy_stratified_live_ocr_accuracy_over_90_percent():
-    """Test na żywo (prawdziwy OCR) dla 12 przekrojowych spraw ZUS — wymagane >= 90% poprawności."""
+def test_sprawy_stratified_live_ocr_accuracy_over_95_percent():
+    """Test na żywo (prawdziwy OCR) dla 12 przekrojowych spraw ZUS — wymagane >= 95% poprawności kategorii."""
     spec_by_name = {s.filename: s for s in build_sprawy_expectations()}
-    passed = 0
+    cat_passed = 0
+    cat_total = 0
     failures: list[tuple[str, list[str]]] = []
 
     for idx, filename in enumerate(STRATIFIED_SAMPLE_FILES, 1):
@@ -50,16 +51,16 @@ def test_sprawy_stratified_live_ocr_accuracy_over_90_percent():
         raw = (SPRAWY_DIR / filename).read_bytes()
         # Zanonimizowana nazwa pliku — parser nie może korzystać z nazwy sprawy!
         res = analyze_pdf_bytes(f"case_{idx:02d}.pdf", raw)
-        errs = evaluate_result(spec, res)
-        if not errs:
-            passed += 1
-        else:
+        checks = evaluate_categories(spec, res)
+        errs = [f"[{cat}] {err}" for cat, ok, err in checks if not ok]
+        cat_total += len(checks)
+        cat_passed += sum(1 for _, ok, _ in checks if ok)
+        if errs:
             failures.append((filename, errs))
 
-    total = len(STRATIFIED_SAMPLE_FILES)
-    accuracy = passed / total * 100.0
-    assert accuracy >= 90.0, (
-        f"Skuteczność OCR na przekrojowym zbiorze ({passed}/{total} = {accuracy:.1f}%) < 90%. "
+    accuracy = (cat_passed / cat_total * 100.0) if cat_total else 0.0
+    assert accuracy >= 95.0, (
+        f"Skuteczność kategorii OCR ({cat_passed}/{cat_total} = {accuracy:.2f}%) < 95%. "
         f"Błędy: {failures}"
     )
 
@@ -70,11 +71,11 @@ def test_sprawy_stratified_live_ocr_accuracy_over_90_percent():
     os.environ.get("ZPPR_FULL_OCR_BENCHMARK") != "1",
     reason="Pełny test 87 plików PDF na żywo uruchamiany z ZPPR_FULL_OCR_BENCHMARK=1.",
 )
-def test_sprawy_all_87_pdfs_live_ocr_accuracy_over_90_percent():
-    """Pełny benchmark OCR na żywo dla wszystkich 87 spraw w Sprawy/ — wymagane >= 90%."""
-    passed, total, failures = run_benchmark(live_ocr=True)
-    accuracy = (passed / total * 100.0) if total else 0.0
-    assert accuracy >= 90.0, (
-        f"Pełna skuteczność OCR ({passed}/{total} = {accuracy:.1f}%) < 90%. "
-        f"Liczba błędów: {len(failures)}; pierwsze 10: {failures[:10]}"
+def test_sprawy_all_87_pdfs_live_ocr_accuracy_over_95_percent():
+    """Pełny benchmark OCR na żywo dla wszystkich 87 spraw w Sprawy/ — wymagane >= 95% poprawności kategorii."""
+    cat_p, cat_t, f_p, f_t, _, failures = run_benchmark(live_ocr=True)
+    accuracy = (cat_p / cat_t * 100.0) if cat_t else 0.0
+    assert accuracy >= 95.0, (
+        f"Pełna skuteczność kategorii OCR ({cat_p}/{cat_t} = {accuracy:.2f}%, pliki {f_p}/{f_t}) < 95%. "
+        f"Liczba plików z błędem: {len(failures)}; pierwsze 10: {failures[:10]}"
     )

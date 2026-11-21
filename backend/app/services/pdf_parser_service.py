@@ -597,6 +597,7 @@ def _strip_zus_boilerplate(text: str) -> str:
         r"W\s+SPRAWIE\s+JEGO\s+PRZYSPOSOBIENIA|"
         r"WYJ[ĄA][TŁFL][A-Z]{0,3}(?:KIEM|EM)\s+|RODZIN[AYĘ]\s+Z[AE]S[TI][ĘE]PCZ[A-Z]*\s+ZAW[I]?ODOW|"
         r"(?:W\s*RAMACH|RZENACH|LAM)\s+RODZ[IŁ]N[AYĘ]\s+Z[AE]S[TI][ĘE]PCZ|"
+        r"ZBIEG\s*[-–]\s*ZASI[ŁL]EK\s+MACIERZY[ŃN]SK|"
         r"NIE\s+PODLEGA\s+OP[ŁL]ACIE\s+SKARBOWEJ",
         re.IGNORECASE,
     )
@@ -842,15 +843,24 @@ def _extract_letter_codes_and_ezla(
     if m_num and ("E-ZLA" in detected_forms or "ZAS-53" in detected_forms or "ZAS-12" in detected_forms):
         ezla_num = m_num.group(1).strip()
 
+    has_sickness_form = any(f in detected_forms for f in ("E-ZLA", "ZAS-53", "ZAS-12", "ZNP-7", "Z-10"))
     incapacity_period: str | None = None
     incapacity_days: int | None = None
     m_period = re.search(
-        r"(?:NIEZDOLNOŚC[IĄ]\s+DO\s+PRACY|OKRES\s+ZWOLNIENIA|OD\s+DNIA|OD)\s*[:\-]?\s*"
+        r"(?:NIEZDOLNO[ŚS]C[IĄ]\s+DO\s+PRACY|OKRES\s+ZWOLNIENIA|ZASI[ŁL]K[UI]\s+CHOROBOWEGO\s+ZA\s+OKRES)\s*[:\-]?\s*(?:OD\s+DNIA|OD)?\s*"
         r"(\d{2}[.\-/]\d{2}[.\-/]\d{4}|\d{4}[.\-/]\d{2}[.\-/]\d{2})\s*(?:DO\s+DNIA|DO|[-–])\s*"
         r"(\d{2}[.\-/]\d{2}[.\-/]\d{4}|\d{4}[.\-/]\d{2}[.\-/]\d{2})",
         clean_text,
         re.IGNORECASE,
     )
+    if not m_period and has_sickness_form:
+        m_period = re.search(
+            r"(?:OD\s+DNIA|OD)\s*[:\-]?\s*"
+            r"(\d{2}[.\-/]\d{2}[.\-/]\d{4}|\d{4}[.\-/]\d{2}[.\-/]\d{2})\s*(?:DO\s+DNIA|DO|[-–])\s*"
+            r"(\d{2}[.\-/]\d{2}[.\-/]\d{4}|\d{4}[.\-/]\d{2}[.\-/]\d{2})",
+            clean_text,
+            re.IGNORECASE,
+        )
     if m_period:
         d1 = _parse_iso_date_token(m_period.group(1))
         d2 = _parse_iso_date_token(m_period.group(2))
@@ -866,12 +876,13 @@ def _extract_letter_codes_and_ezla(
                 if ch not in codes:
                     codes.append(ch)
 
-    # 2. Z tekstu (jawne oznaczenie kodu literowego, np. "kod literowy: B", "kod: B", "kody: A, B", "kod B")
-    for m_code in re.finditer(
-        r"KOD(?:Y)?(?:\s+LITEROW[EY])?\s*[:\-]?\s*[\"„']?([A-E](?:\s*[,/]\s*[A-E])*)[\"”']?(?!\w)",
-        clean_text,
-        re.IGNORECASE,
-    ):
+    # 2. Z tekstu (jawne oznaczenie kodu literowego, np. "kod literowy: B", "kody: A, B"; bez szumu z tabel Z-3)
+    code_pat = (
+        r"KOD(?:Y)?(?:\s+LITEROW[EY])?\s*[:\-]?\s*[\"„']?([A-E](?:\s*[,/]\s*[A-E])*)[\"”']?(?!\w)"
+        if has_sickness_form
+        else r"KOD(?:Y)?\s+LITEROW[EY]\s*[:\-]\s*[\"„']?([A-E](?:\s*[,/]\s*[A-E])*)[\"”']?(?!\w)"
+    )
+    for m_code in re.finditer(code_pat, clean_text, re.IGNORECASE):
         for ch in re.findall(r"[A-E]", m_code.group(1).upper()):
             if ch not in codes:
                 codes.append(ch)
@@ -1037,13 +1048,14 @@ def _analyze_extracted_content(
     # 3. Kod tytułu ubezpieczenia ZUS (np. 01 10, 04 11, 05 10, 05 70, 051000)
     zus_title_code: str | None = None
     m_zcode = re.search(
-        r"(?:KOD\s+TYTU[ŁL]U(?:\s+UBEZPIECZENIA)?|TYTU[ŁL]\s+UBEZPIECZENIA|Z\s+TYTU[ŁL]U)\s*[:\-]?\s*(0[145]\s?\d{2})(?:\d{2})?",
+        r"(?:KOD\s+TYTU[ŁL]U(?:\s+UBEZPIECZENIA)?|TYTU[ŁL]\s+UBEZPIECZENIA|\bTYTU[ŁL]U)\s*[:\-]?\s*(0[145]\s?\d{2})(?:\d{2})?",
         clean_upper,
     )
     if m_zcode:
         zus_title_code = re.sub(r"\s+", "", m_zcode.group(1))
 
     # 4. Tytuł ubezpieczenia — ZERO ZGADYWANIA (zaczyna jako None!)
+    # Priorytet: ERU/ERSU -> kod ZUS -> jawny formularz (Z-3A / Z-3B / Z-3 / WNIOSEK URLOPOWY KP) -> frazy tekstowe
     is_zam_attachment_checklist = primary_form == "ZAM" and "Z-3" in detected and "Z-3A" in detected
     suggested_title: str | None = None
     if primary_form in ("ERU", "ERSU"):
@@ -1053,23 +1065,20 @@ def _analyze_extracted_content(
         )
     elif zus_title_code and zus_title_code in _ZUS_TITLE_CODE_MAP:
         suggested_title = _ZUS_TITLE_CODE_MAP[zus_title_code][0]
-    elif (
-        primary_form == "Z-3A"
-        or ("Z-3A" in detected and not is_zam_attachment_checklist)
-        or re.search(r"UMOW[AYĘ]\s+ZLECEN", clean_upper)
-    ):
+    elif primary_form == "Z-3A" or ("Z-3A" in detected and not is_zam_attachment_checklist):
         suggested_title = "zlecenie"
-    elif (
-        primary_form == "Z-3B"
-        or ("Z-3B" in detected and not is_zam_attachment_checklist)
-        or re.search(r"DZIA[ŁL]ALNO[ŚS]C[IĄ]\s+GOSPODARCZ|POZAROLNICZ[ĄA]\s+DZIA[ŁL]ALNO[ŚS]|OSOB[AY]\s+WSP[ÓO][ŁL]PRACUJ[ĄA]C|OSOB[AY]\s+PROWADZ[ĄA]C[AEY]\s+DZIA[ŁL]ALNO[ŚS]", clean_upper)
+    elif primary_form == "Z-3B" or ("Z-3B" in detected and not is_zam_attachment_checklist):
+        suggested_title = "jdg"
+    elif primary_form in ("Z-3", "WNIOSEK URLOPOWY KP") or ("Z-3" in detected and not is_zam_attachment_checklist):
+        suggested_title = "uop"
+    elif re.search(r"UMOW[AYĘ]\s+ZLECEN", clean_upper):
+        suggested_title = "zlecenie"
+    elif re.search(
+        r"DZIA[ŁL]ALNO[ŚS]C[IĄ]\s+GOSPODARCZ|POZAROLNICZ[ĄA]\s+DZIA[ŁL]ALNO[ŚS]|OSOB[AY]\s+WSP[ÓO][ŁL]PRACUJ[ĄA]C|OSOB[AY]\s+PROWADZ[ĄA]C[AEY]\s+DZIA[ŁL]ALNO[ŚS]",
+        clean_upper,
     ):
         suggested_title = "jdg"
-    elif (
-        primary_form in ("Z-3", "WNIOSEK URLOPOWY KP")
-        or ("Z-3" in detected and not is_zam_attachment_checklist)
-        or re.search(r"UMOW[AYĘ]\s+O\s+PRAC[ĘE]|STOSUNKU\s+PRACY|Z\s+TYTU[ŁL]U\s+ZATRUDNIENIA", clean_upper)
-    ):
+    elif re.search(r"UMOW[AYĘ]\s+O\s+PRAC[ĘE]|STOSUNKU\s+PRACY|Z\s+TYTU[ŁL]U\s+ZATRUDNIENIA", clean_upper):
         suggested_title = "uop"
 
     # 5. Zwolnienie chorobowe, kody literowe A-E i ciąża (ZERO wymuszania ciąży!)
@@ -1221,6 +1230,11 @@ def _analyze_extracted_content(
                 # 65 tygodni (31 mac. + 34 rodz. = 455 dni) bez „Za życiem” i wcześniactwa oznacza bliźnięta (2 dzieci)
                 if 450 <= mat_days <= 462:
                     children_count = 2
+        if children_count is None and scenario == "birth" and re.search(
+            r"W\s+WYMIARZE\s+(?:20|32)\s+TYGODNI",
+            clean_upper,
+        ):
+            children_count = 1
     combine_work: bool | None = (
         True
         if re.search(
