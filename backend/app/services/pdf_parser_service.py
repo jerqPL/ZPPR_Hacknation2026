@@ -654,33 +654,66 @@ def _extract_amounts_with_context(
             if val is not None:
                 amounts.append(val)
 
-    # 2. Warstwa tekstowa / OCR — pomijamy wiersze podsumowań, podstawy prawne (Dz.U., art.), zadłużenie, dane adresowe
+    # 2. Warstwa tekstowa / OCR — pomijamy wiersze podsumowań, podstawy prawne (Dz.U., art.), zadłużenie, Kosiniakowe (1000 zł), daty
     if not amounts:
         skip_line_pat = re.compile(
-            r"\b(?:RAZEM|SUMA|ŁĄCZNIE|OGÓŁEM|TOTAL|DZ\.?\s*U\.|POZ\.|ART\.|ZADŁUŻ|ZALEGŁ|NR\s+SPRAWY|KOD\s+POCZTOW|TELEFON|NIP|REGON|PESEL)\b",
+            r"\b(?:RAZEM|SUMA|ŁĄCZNIE|OGÓŁEM|TOTAL|DZ\.?\s*U\.|POZ\.|ART\.|ZADŁUŻ|ZALEGŁ|"
+            r"NR\s+SPRAWY|KOD\s+POCZTOW|TELEFON|NIP|REGON|PESEL)\b|"
+            r"ŚWIADCZENI[AE]\s+RODZICIELSK|PODWY[ŻZ]SZENI[AE]|WYR[ÓO]WNANI[EA]|KOSINIAKOW|"
+            r"MASA\s+PONI[ŻZ]EJ|1\s+STYCZNIA\s+2016|WYNOSI\s+MIESI[ĘE]CZNIE\s+1\s*000|DO\s+1\s*000\s*(?:Z[ŁL]|PLN)",
             re.IGNORECASE,
+        )
+
+        # 2a. Preferuj ustrukturyzowane wiersze miesięczne z Poświadczenia ZUS / Z-3 (np. "2024-08 4 694,40")
+        monthly_map: dict[str, list[float]] = {}
+        monthly_pat = re.compile(
+            r"\b(20\d{2}[-/](?:0[1-9]|1[0-2]))\b[^\n]{0,18}?(\d{1,2}[\s\xa0\.]\d{3},\d{2}|\d{3,5},\d{2})(?!\d)"
         )
         for line in text.splitlines():
             if skip_line_pat.search(line):
                 continue
-            dec_matches = re.findall(
-                r"(?<!\d)(?<!\d\.)(\d{1,2}[\s\xa0\.]\d{3}[,\.]\d{2}|\d{3,5}[,\.]\d{2})(?!\d|\.\d)",
-                line,
-            )
-            for raw in dec_matches:
-                val = _parse_single_amount(raw)
+            m_mon = monthly_pat.search(line)
+            if m_mon:
+                ym = m_mon.group(1).replace("/", "-")
+                val = _parse_single_amount(m_mon.group(2))
                 if val is not None:
-                    amounts.append(val)
-            if not dec_matches:
-                int_matches = re.findall(
-                    r"(?<!\d)(?<!\d\.)(\d{1,2}[\s\xa0\.]\d{3}|\d{3,5})(?!\s*[,\.]\d)\s*(?:zł|zl|PLN)\b",
+                    monthly_map.setdefault(ym, []).append(val)
+
+        if len(monthly_map) >= 2:
+            # Dla każdego miesiąca wybierz najczęstszą (lub ostatnią) kwotę, biorąc maks. 12 najnowszych miesięcy
+            for ym in sorted(monthly_map.keys(), reverse=True)[:12]:
+                vals = monthly_map[ym]
+                best = max(vals, key=lambda x: (vals.count(x), x))
+                amounts.append(best)
+        else:
+            for line in text.splitlines():
+                if skip_line_pat.search(line):
+                    continue
+                # Wymagaj polskiego przecinka dla gołych kwot (eliminuje daty z kropką typu 2025.07 / 2203.37)
+                dec_matches = re.findall(
+                    r"(?<!\d)(?<!\d\.)(\d{1,2}[\s\xa0\.]\d{3},\d{2}|\d{3,5},\d{2})(?!\d|\.\d|-\d)",
                     line,
-                    re.IGNORECASE,
                 )
-                for raw in int_matches:
+                for raw in dec_matches:
                     val = _parse_single_amount(raw)
                     if val is not None:
                         amounts.append(val)
+                if not dec_matches:
+                    int_matches = re.findall(
+                        r"(?<!\d)(?<!\d\.)(\d{1,2}[\s\xa0\.]\d{3}|\d{3,5})(?!\s*[,\.]\d)\s*(?:zł|zl|PLN)\b",
+                        line,
+                        re.IGNORECASE,
+                    )
+                    for raw in int_matches:
+                        val = _parse_single_amount(raw)
+                        if val is not None:
+                            amounts.append(val)
+
+    # 3. Nie uśredniaj pary [brutto, brutto * (1 - 0.1371)] — jeśli są dokładnie 2 takie kwoty, zachowaj brutto
+    if len(amounts) == 2 and not is_net_base:
+        hi, lo = max(amounts), min(amounts)
+        if abs(lo - round(hi * (1.0 - 0.1371), 2)) <= 1.5:
+            amounts = [hi]
 
     return amounts, is_net_base
 
@@ -1173,6 +1206,21 @@ def _analyze_extracted_content(
         )
         else None
     )
+    if children_count is None and not has_za_zyciem and not premature:
+        m_mat_per = re.search(
+            r"MACIERZY[ŃN]SKIEGO[\s\S]{0,60}?OD\s+"
+            r"(\d{2}[.\-/]\d{2}[.\-/]\d{4}|\d{4}[.\-/]\d{2}[.\-/]\d{2})\s+DO\s+"
+            r"(\d{2}[.\-/]\d{2}[.\-/]\d{4}|\d{4}[.\-/]\d{2}[.\-/]\d{2})",
+            clean_upper,
+        )
+        if m_mat_per:
+            md1 = _parse_iso_date_token(m_mat_per.group(1))
+            md2 = _parse_iso_date_token(m_mat_per.group(2))
+            if md1 and md2 and md2 > md1:
+                mat_days = (md2 - md1).days + 1
+                # 65 tygodni (31 mac. + 34 rodz. = 455 dni) bez „Za życiem” i wcześniactwa oznacza bliźnięta (2 dzieci)
+                if 450 <= mat_days <= 462:
+                    children_count = 2
     combine_work: bool | None = (
         True
         if re.search(

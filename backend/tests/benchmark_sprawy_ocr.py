@@ -189,6 +189,17 @@ def evaluate_result(spec: SprawaExpectation, res: PdfAnalysisResult) -> list[str
     if spec.expected_title is not None and res.suggested_insurance_title != spec.expected_title:
         errors.append(f"insurance_title={res.suggested_insurance_title!r}, expected {spec.expected_title!r}")
 
+    # Walidacja jakości kwot: nigdy nie może wyciągać 1000,00 zł ze stopki o świadczeniu rodzicielskim ani dat (np. 2025.07)
+    if res.suggested_gross_salary is not None:
+        if abs(res.suggested_gross_salary - 1000.0) < 0.01 and ef.extracted_amounts == [1000.0]:
+            errors.append("FALSE SALARY: extracted 1000.00 zł (Kosiniakowe boilerplate)")
+        if (
+            len(ef.extracted_amounts) == 1
+            and 2015.0 <= res.suggested_gross_salary <= 2035.12
+            and round((res.suggested_gross_salary % 1) * 100) in range(1, 13)
+        ):
+            errors.append(f"FALSE SALARY: date-like amount {res.suggested_gross_salary}")
+
     return errors
 
 
