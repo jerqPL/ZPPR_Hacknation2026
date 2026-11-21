@@ -259,10 +259,13 @@ export default function PregnancyPage() {
                 onChange={(e) => setTerminationReason(e.target.value)}
                 className="mt-2 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#111c17] px-3 py-2 text-xs"
               >
-                <option value="bankruptcy_liquidation">Upadłość lub likwidacja pracodawcy</option>
-                <option value="employer_death">Śmierć pracodawcy</option>
+                <option value="bankruptcy_liquidation">Upadłość lub likwidacja pracodawcy (art. 30 ust. 3)</option>
+                <option value="employer_death">Śmierć pracodawcy (art. 30 ust. 3)</option>
                 <option value="unlawful_termination_court_ruling">
-                  Rozwiązanie umowy z naruszeniem prawa (prawomocny wyrok sądu)
+                  Rozwiązanie umowy z naruszeniem prawa — prawomocny wyrok sądu (art. 30 ust. 3)
+                </option>
+                <option value="post_employment_art7">
+                  Zasiłek chorobowy po ustaniu ubezpieczenia w ciąży — do 14 dni od ustania (art. 7 i 46)
                 </option>
               </select>
             )}

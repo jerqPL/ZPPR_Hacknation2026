@@ -1,9 +1,13 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 import uuid
-from app.models.calculator import InsuranceTitle
+from app.models.calculator import InsuranceTitle, PaymentVariant
 from app.models.guidance import DocumentGuidanceResponse, DocumentRequirement
 from app.models.parameters import LegalParameters
-from app.models.simulation import ApplicationSubmissionRequest, ApplicationSubmissionResponse
+from app.models.simulation import (
+    ApplicationSubmissionRequest,
+    ApplicationSubmissionResponse,
+    ApplicationType,
+)
 
 
 def get_document_guidance(
@@ -35,11 +39,11 @@ def get_document_guidance(
         docs.append(
             DocumentRequirement(
                 form_code="Wniosek o urlop (KP)",
-                title="Wniosek o udzielenie urlopu macierzyńskiego i rodzicielskiego",
+                title="Wniosek o udzielenie urlopu macierzyńskiego i rodzicielskiego (lub pisemna deklaracja 81,5%)",
                 submitted_by="Pracownik (matka/ojciec)",
                 submitted_to="Pracodawca",
-                deadline=f"Do {params.combined_application_deadline_days} dni po porodzie (dla stawki 81,5%)",
-                notes="Można złożyć jeden łączny wniosek o urlop macierzyński i rodzicielski.",
+                deadline=f"Do {params.combined_application_deadline_days} dni po porodzie (dla stawki {params.combined_21_days_rate*100:.1f}%)",
+                notes="Alternatywnie można złożyć sam wniosek/deklarację o wypłatę 81,5% za pełny wymiar (art. 30a ustawy zasiłkowej).",
             )
         )
         if not employer_pays:
@@ -60,7 +64,7 @@ def get_document_guidance(
                 title="Wniosek o zasiłek macierzyński",
                 submitted_by="Ubezpieczony (zleceniobiorca)",
                 submitted_to="Płatnik składek lub ZUS",
-                deadline=f"Do {params.combined_application_deadline_days} dni po porodzie (dla stawki 81,5%)",
+                deadline=f"Do {params.combined_application_deadline_days} dni po porodzie (dla stawki {params.combined_21_days_rate*100:.1f}%)",
                 notes="Zleceniobiorca nie ma urlopu z Kodeksu pracy, ale ma prawo do zasiłku za okres odpowiadający urlopowi.",
             )
         )
@@ -82,8 +86,8 @@ def get_document_guidance(
                 title="Wniosek o zasiłek macierzyński",
                 submitted_by="Osoba prowadząca JDG / ubezpieczony",
                 submitted_to="ZUS (PUE/eZUS)",
-                deadline=f"Do {params.combined_application_deadline_days} dni po porodzie (dla stawki 81,5%)",
-                notes="Dla zasiłku chorobowego w ciąży na JDG należy złożyć również wniosek ZAS-53.",
+                deadline=f"Do {params.combined_application_deadline_days} dni po porodzie (dla stawki {params.combined_21_days_rate*100:.1f}%)",
+                notes="Rozpoczęcie zasiłku macierzyńskiego na JDG powoduje automatyczne ustanie dobrowolnego ubezpieczenia chorobowego — po zakończeniu zasiłku wymagane jest ponowne zgłoszenie ZUS ZUA.",
             )
         )
         docs.append(
@@ -109,8 +113,10 @@ def get_document_guidance(
     )
 
     notes_2026 = [
-        "Od 24 października 2026 r. formularze ZUR (rodzicielski) oraz ZAO (ojcowski) zostały połączone z formularzem ZAM i zlikwidowane.",
-        "Od 24 października 2026 r. formularz Z-3b został zlikwidowany.",
+        "Od 24 października 2026 r. formularze ZUR (rodzicielski) oraz ZAO (ojcowski) zostały połączone z formularzem ZAM i zlikwidowane; zlikwidowano również Z-3b.",
+        f"Roszczenie o wypłatę zasiłku przedawnia się po upływie {params.claim_limitation_months} miesięcy od ostatniego dnia okresu, za który zasiłek przysługuje (art. 67 ustawy zasiłkowej).",
+        f"W przypadku urodzenia martwego dziecka rodzinie przysługuje również zasiłek pogrzebowy w wysokości {params.funeral_grant_pln:,.0f} zł (wniosek Z-12).".replace(",", " "),
+        "Dla stawki 81,5% można złożyć jeden wniosek o oba urlopy albo odrębną pisemną deklarację w terminie 21 dni od porodu (art. 30a ustawy zasiłkowej).",
         "Wzory aktualnych formularzy ZUS dostępne są na stronie www.zus.pl (zakładka Wzory formularzy -> Zasiłki).",
     ]
 
@@ -124,20 +130,85 @@ def get_document_guidance(
 
 def simulate_application_submission(
     req: ApplicationSubmissionRequest,
+    params: LegalParameters | None = None,
 ) -> ApplicationSubmissionResponse:
-    now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-    prefix = {
-        "leave_employer": "URLOP",
-        "zam_zus": "ZUS-ZAM",
-        "usc_birth_certificate": "USC-AKT",
-    }.get(req.application_type, "WNIOSEK")
+    from app.services.parameter_store import parameter_store
 
+    p = params or parameter_store.get()
+    now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    prefix_map = {
+        ApplicationType.LEAVE_EMPLOYER: "URLOP",
+        ApplicationType.LEAVE_SUPPLEMENTARY: "URLOP-UZUP",
+        ApplicationType.LEAVE_RESIGNATION: "REZYGNACJA",
+        ApplicationType.LEAVE_WORK_COMBINATION: "LACZENIE-PRACY",
+        ApplicationType.ZAM_ZUS: "ZUS-ZAM",
+        ApplicationType.USC_BIRTH_CERTIFICATE: "USC-AKT",
+    }
+    prefix = prefix_map.get(req.application_type, "WNIOSEK")
     ref = f"{prefix}-SIM-{uuid.uuid4().hex[:8].upper()}"
+
+    deadline_21: str | None = None
+    if req.child_birth_date:
+        try:
+            birth = date.fromisoformat(req.child_birth_date)
+            deadline_21 = (birth + timedelta(days=p.combined_application_deadline_days)).isoformat()
+        except ValueError:
+            deadline_21 = None
+
+    title_map = {
+        ApplicationType.LEAVE_EMPLOYER: "WNIOSEK O UDZIELENIE URLOPU MACIERZYŃSKIEGO I RODZICIELSKIEGO",
+        ApplicationType.LEAVE_SUPPLEMENTARY: "WNIOSEK O UDZIELENIE UZUPEŁNIAJĄCEGO URLOPU MACIERZYŃSKIEGO (art. 180² KP)",
+        ApplicationType.LEAVE_RESIGNATION: "WNIOSEK O REZYGNACJĘ Z CZĘŚCI URLOPU MACIERZYŃSKIEGO / RODZICIELSKIEGO",
+        ApplicationType.LEAVE_WORK_COMBINATION: "WNIOSEK O ŁĄCZENIE URLOPU RODZICIELSKIEGO Z WYKONYWANIEM PRACY (art. 182¹ᵉ KP)",
+        ApplicationType.ZAM_ZUS: "WNIOSEK O ZASIŁEK MACIERZYŃSKI (FORMULARZ ZAM)",
+        ApplicationType.USC_BIRTH_CERTIFICATE: "WNIOSEK O WYDANIE ODPISU AKTU URODZENIA (USC)",
+    }
+
+    lines = [
+        f"Nr referencyjny (symulacja): {ref}",
+        f"Data wygenerowania: {now_iso}",
+        "",
+        f"Wnioskodawca: {req.applicant_name} (PESEL: {req.pesel_masked})",
+        f"Adresat: {req.recipient}",
+        "",
+        f"=== {title_map[req.application_type]} ===",
+        "",
+    ]
+    if req.child_birth_date:
+        lines.append(f"Data urodzenia dziecka: {req.child_birth_date}")
+    if deadline_21:
+        lines.append(
+            f"Termin {p.combined_application_deadline_days} dni na wniosek/deklarację o 81,5%: {deadline_21}"
+        )
+    if req.leave_start_date or req.leave_end_date:
+        lines.append(f"Wnioskowany okres urlopu/zasiłku: od {req.leave_start_date or '—'} do {req.leave_end_date or '—'}")
+    if req.leave_parts_count and req.application_type in (ApplicationType.LEAVE_EMPLOYER, ApplicationType.ZAM_ZUS):
+        lines.append(f"Planowana liczba części urlopu rodzicielskiego: {req.leave_parts_count} (maks. {p.parental_max_parts})")
+    if req.payment_variant and req.application_type in (ApplicationType.LEAVE_EMPLOYER, ApplicationType.ZAM_ZUS):
+        variant_txt = (
+            f"{p.combined_21_days_rate*100:.1f}% za cały okres (wniosek w {p.combined_application_deadline_days} dni)"
+            if req.payment_variant == PaymentVariant.COMBINED_81_5
+            else f"{p.maternity_rate_standard*100:.0f}% macierzyński + {p.parental_rate_standard*100:.0f}% rodzicielski"
+        )
+        lines.append(f"Wybrany wariant wypłaty zasiłku: {variant_txt}")
+    if req.application_type == ApplicationType.LEAVE_WORK_COMBINATION and req.work_fte_fraction:
+        lines.append(f"Wymiar czasu pracy podczas urlopu rodzicielskiego: {req.work_fte_fraction} etatu (maks. 0.5)")
+    if req.application_type == ApplicationType.LEAVE_SUPPLEMENTARY and (req.hospitalization_from or req.hospitalization_to):
+        lines.append(f"Okres hospitalizacji dziecka: od {req.hospitalization_from or '—'} do {req.hospitalization_to or '—'}")
+    if req.application_type == ApplicationType.LEAVE_RESIGNATION and req.resignation_date:
+        lines.append(f"Data rezygnacji z dalszej części urlopu: {req.resignation_date}")
+    if req.notes:
+        lines.append(f"Uwagi dodatkowe: {req.notes}")
+
+    lines.extend(["", "Podpis wnioskodawcy (symulacja): ________________________"])
+
     return ApplicationSubmissionResponse(
         reference_number=ref,
         application_type=req.application_type,
         recipient=req.recipient,
         submitted_at=now_iso,
-        status="Złożono pomyślnie (SYMULACJA — nie wysłano realnych danych)",
-        summary=f"Wygenerowano i zasymulowano wysłanie dokumentu ({req.application_type}) dla {req.applicant_name} do: {req.recipient}.",
+        deadline_21_days=deadline_21,
+        status="Wygenerowano i zasymulowano wysłanie dokumentu",
+        summary=f"Przygotowano dokument ({title_map[req.application_type]}) dla {req.applicant_name} do: {req.recipient}.",
+        generated_document_text="\n".join(lines),
     )

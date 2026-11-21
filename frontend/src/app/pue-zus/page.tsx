@@ -7,7 +7,7 @@ import { api } from "@/lib/api";
 import type { DebtStatusResponse, EzlaCertificate, SimulatedUserProfile } from "@/lib/types";
 
 export default function PueZusSimulationPage() {
-  const { user, loginAs, logout, loading } = useUser();
+  const { user, loginAs, logout, loading, error: authError } = useUser();
   const [personas, setPersonas] = useState<SimulatedUserProfile[]>([]);
   const [ezla, setEzla] = useState<EzlaCertificate[]>([]);
   const [debt, setDebt] = useState<DebtStatusResponse | null>(null);
@@ -17,6 +17,7 @@ export default function PueZusSimulationPage() {
     "Proszę o potwierdzenie, czy mój okres dobrowolnego ubezpieczenia chorobowego jest ciągły."
   );
   const [ticketInfo, setTicketInfo] = useState<string | null>(null);
+  const [inquiryError, setInquiryError] = useState<string | null>(null);
 
   useEffect(() => {
     api.getPersonas().then(setPersonas).catch(() => setPersonas([]));
@@ -34,12 +35,18 @@ export default function PueZusSimulationPage() {
 
   const handleInquiry = async (e: React.FormEvent) => {
     e.preventDefault();
-    const res = await api.submitPueInquiry({
-      persona_id: user?.id || "uop_standard",
-      subject,
-      message,
-    });
-    setTicketInfo(`${res.status} — numer zgłoszenia: ${res.ticket_id} (${res.estimated_response})`);
+    setInquiryError(null);
+    setTicketInfo(null);
+    try {
+      const res = await api.submitPueInquiry({
+        persona_id: user?.id || "uop_standard",
+        subject,
+        message,
+      });
+      setTicketInfo(`${res.status} — numer zgłoszenia: ${res.ticket_id} (${res.estimated_response})`);
+    } catch (err) {
+      setInquiryError(err instanceof Error ? err.message : "Nie udało się wysłać zapytania");
+    }
   };
 
   return (
@@ -237,7 +244,14 @@ export default function PueZusSimulationPage() {
                 Wyślij zapytanie przez PUE/eZUS (symulacja)
               </button>
               {ticketInfo && (
-                <p className="rounded-lg border border-emerald-200 bg-emerald-50 p-2.5 text-xs text-emerald-900 dark:border-emerald-500/30 dark:bg-emerald-500/15 dark:text-emerald-200">{ticketInfo}</p>
+                <p className="rounded-lg border border-emerald-200 bg-emerald-50 p-2.5 text-xs text-emerald-900 dark:border-emerald-500/30 dark:bg-emerald-500/15 dark:text-emerald-200">
+                  {ticketInfo}
+                </p>
+              )}
+              {(inquiryError || authError) && (
+                <p className="rounded-lg border border-red-200 bg-red-50 p-2.5 text-xs text-red-800 dark:border-red-500/30 dark:bg-red-500/15 dark:text-red-200">
+                  {inquiryError || authError}
+                </p>
               )}
             </form>
           </section>

@@ -1,8 +1,8 @@
 import type {
+  ApplicationSubmissionResponse,
   DebtStatusResponse,
   DocumentGuidanceResponse,
   EzlaCertificate,
-  IndividualBaseCalculationRequest,
   IndividualBaseCalculationResponse,
   InsuranceTitle,
   IntegratedCalculatorResponse,
@@ -60,7 +60,12 @@ export const api = {
       method: "POST",
       body: JSON.stringify(payload),
     }),
-  calculateIndividualBase: (payload: IndividualBaseCalculationRequest) =>
+  calculateBenefitBase: (payload: Record<string, unknown>) =>
+    apiFetch<IndividualBaseCalculationResponse>("/calculator/benefit-base", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  calculateIndividualBase: (payload: Record<string, unknown>) =>
     apiFetch<IndividualBaseCalculationResponse>("/calculator/benefit-base", {
       method: "POST",
       body: JSON.stringify(payload),
@@ -71,14 +76,10 @@ export const api = {
       `/documents/guidance?insurance_title=${insuranceTitle}&employer_insured_count=${employerInsuredCount}`
     ),
   submitApplication: (payload: Record<string, unknown>) =>
-    apiFetch<{
-      reference_number: string;
-      application_type: string;
-      recipient: string;
-      submitted_at: string;
-      status: string;
-      summary: string;
-    }>("/documents/submit", { method: "POST", body: JSON.stringify(payload) }),
+    apiFetch<ApplicationSubmissionResponse>("/documents/submit", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
   getSampleCases: () => apiFetch<SampleCase[]>("/documents/sample-cases"),
   analyzePdf: async (file: File): Promise<PdfAnalysisResult> => {
     const form = new FormData();
@@ -98,11 +99,15 @@ export const api = {
   getOfficialLinks: () => apiFetch<OfficialLink[]>("/guidance/official-links"),
 
   getParameters: () => apiFetch<LegalParameters>("/admin/parameters"),
-  updateParameters: (params: LegalParameters) =>
+  updateParameters: (params: LegalParameters, adminKey: string) =>
     apiFetch<LegalParameters>("/admin/parameters", {
       method: "PUT",
+      headers: { "X-Admin-Key": adminKey },
       body: JSON.stringify(params),
     }),
-  resetParameters: () =>
-    apiFetch<LegalParameters>("/admin/parameters/reset", { method: "POST" }),
+  resetParameters: (adminKey: string) =>
+    apiFetch<LegalParameters>("/admin/parameters/reset", {
+      method: "POST",
+      headers: { "X-Admin-Key": adminKey },
+    }),
 };

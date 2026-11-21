@@ -8,6 +8,7 @@
   "sickness_pay_employer_days_under_50": 33,
   "sickness_pay_employer_days_over_50": 14,
   "sickness_benefit_pregnancy_rate": 1.0,
+  "sickness_benefit_standard_rate": 0.8,
   "maternity_rate_standard": 1.0,
   "parental_rate_standard": 0.7,
   "combined_21_days_rate": 0.815,
@@ -44,9 +45,14 @@
   "adoption_foster_reduced_parental_weeks": 38,
   "adoption_foster_reduced_parental_weeks_za_zyciem": 62,
   "voluntary_sickness_max_monthly_gross": 23550.0,
+  "post_employment_sickness_cap_monthly_gross": 9420.0,
   "jdg_preferential_min_base_gross": 1441.8,
   "jdg_standard_min_base_gross": 5652.0,
   "parental_benefit_minimum_monthly": 1000.0,
   "rehabilitation_benefit_pregnancy_rate": 1.0,
-  "rehabilitation_benefit_max_days": 360
+  "rehabilitation_benefit_max_days": 360,
+  "debt_threshold_min_wage_fraction": 0.01,
+  "weeks_per_year": 52.1429,
+  "funeral_grant_pln": 7000.0,
+  "claim_limitation_months": 6
 }

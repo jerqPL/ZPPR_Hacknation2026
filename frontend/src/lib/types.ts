@@ -3,31 +3,6 @@ export type BenefitScenario = "birth" | "adoption" | "foster";
 export type FosterFamilyType = "non_professional" | "professional";
 export type PaymentVariant = "100_70" | "81_5";
 
-export interface IndividualBaseCalculationRequest {
-  insurance_title: InsuranceTitle;
-  mode: "uop_12m" | "previous_benefit" | "jdg_art48a";
-  monthly_gross_salaries?: number[];
-  quarterly_bonuses_total?: number;
-  annual_bonus_total?: number;
-  uncompleted_months_excluded?: number;
-  fte_fraction?: number;
-  previous_benefit_base?: number | null;
-  jdg_insured_months?: number;
-  jdg_declared_monthly_gross?: number;
-  jdg_min_monthly_gross?: number | null;
-}
-
-export interface IndividualBaseCalculationResponse {
-  computed_base_monthly: number;
-  daily_rate_100_percent: number;
-  daily_rate_81_5_percent: number;
-  daily_rate_70_percent: number;
-  cap_applied: boolean;
-  floor_applied: boolean;
-  legal_basis: string;
-  explanation_steps: string[];
-}
-
 export interface SimulatedUserProfile {
   id: string;
   full_name: string;
@@ -70,6 +45,17 @@ export interface DebtStatusResponse {
   impact_warning: string;
 }
 
+export interface IndividualBaseCalculationResponse {
+  computed_base_monthly: number;
+  daily_rate_100_percent: number;
+  daily_rate_81_5_percent: number;
+  daily_rate_70_percent: number;
+  cap_applied: boolean;
+  floor_applied: boolean;
+  legal_basis: string;
+  explanation_steps: string[];
+}
+
 export interface PregnancyBenefitResponse {
   eligible_sickness_benefit: boolean;
   eligible_maternity_equivalent: boolean;
@@ -80,9 +66,9 @@ export interface PregnancyBenefitResponse {
   benefit_base_explanation?: string | null;
   daily_benefit_gross: number;
   monthly_benefit_gross: number;
-  rehabilitation_monthly_gross?: number;
-  rehabilitation_daily_gross?: number;
-  rehabilitation_max_days?: number;
+  rehabilitation_monthly_gross: number;
+  rehabilitation_daily_gross: number;
+  rehabilitation_max_days: number;
   max_benefit_days: number;
   employer_pay_days: number;
   payer: string;
@@ -107,7 +93,8 @@ export interface IntegratedCalculatorResponse {
   benefit_base_parent2: number;
   benefit_base_explanation?: string | null;
   benefit_base_parent2_explanation?: string | null;
-  minimum_benefit_top_up_applied?: boolean;
+  minimum_benefit_top_up_applied: boolean;
+  equalization_to_100_pln: number;
   total_weeks: number;
   maternity_weeks: number;
   supplementary_maternity_weeks: number;
@@ -170,6 +157,8 @@ export interface SampleCase {
   insurance_title: InsuranceTitle;
   insured_on_event_date: boolean;
   expected_decision: string;
+  expected_eligible: boolean;
+  expected_base_parent1?: number | null;
   gross_monthly_salary: number;
   custom_benefit_base?: number | null;
   benefit_base_details?: string | null;
@@ -177,26 +166,51 @@ export interface SampleCase {
   second_parent_custom_base?: number | null;
   children_count: number;
   child_age_years?: number | null;
-  foster_family_type?: FosterFamilyType;
-  foster_deferred_school?: boolean;
+  foster_family_type: FosterFamilyType;
+  foster_deferred_school: boolean;
   payment_variant: PaymentVariant;
   has_za_zyciem: boolean;
   employer_insured_count: number;
   mother_maternity_weeks?: number | null;
-  father_takes_parental_weeks?: number;
-  father_takes_paternity_leave?: boolean;
+  father_takes_parental_weeks: number;
+  father_takes_paternity_leave: boolean;
   notes: string;
+}
+
+export interface ExtractedPdfFields {
+  form_type: string;
+  insurance_title: InsuranceTitle;
+  insurance_periods: string[];
+  amount_is_net_base: boolean;
+  extracted_amounts: number[];
+  employer_insured_count?: number | null;
+  children_count: number;
+  ocr_required: boolean;
 }
 
 export interface PdfAnalysisResult {
   filename: string;
   detected_forms: string[];
   extracted_text_preview: string;
+  verification_status: "verified" | "denied" | "needs_review";
+  confidence: "high" | "medium" | "low";
   insurance_verified: boolean;
   suggested_insurance_title: InsuranceTitle;
   suggested_gross_salary?: number | null;
   suggested_custom_benefit_base?: number | null;
+  extracted_fields: ExtractedPdfFields;
   notes: string[];
+}
+
+export interface ApplicationSubmissionResponse {
+  reference_number: string;
+  application_type: string;
+  recipient: string;
+  submitted_at: string;
+  deadline_21_days?: string | null;
+  status: string;
+  summary: string;
+  generated_document_text: string;
 }
 
 export interface LegalParameters {
@@ -209,6 +223,7 @@ export interface LegalParameters {
   sickness_pay_employer_days_under_50: number;
   sickness_pay_employer_days_over_50: number;
   sickness_benefit_pregnancy_rate: number;
+  sickness_benefit_standard_rate: number;
   maternity_rate_standard: number;
   parental_rate_standard: number;
   combined_21_days_rate: number;
@@ -235,11 +250,18 @@ export interface LegalParameters {
   foster_max_child_age: number;
   foster_deferred_school_max_child_age: number;
   adoption_max_child_age: number;
-  adoption_foster_min_maternity_weeks?: number;
-  adoption_foster_reduced_parental_weeks?: number;
-  adoption_foster_reduced_parental_weeks_za_zyciem?: number;
-  voluntary_sickness_max_monthly_gross?: number;
-  jdg_preferential_min_base_gross?: number;
-  jdg_standard_min_base_gross?: number;
+  adoption_foster_min_maternity_weeks: number;
+  adoption_foster_reduced_parental_weeks: number;
+  adoption_foster_reduced_parental_weeks_za_zyciem: number;
+  voluntary_sickness_max_monthly_gross: number;
+  post_employment_sickness_cap_monthly_gross: number;
+  jdg_preferential_min_base_gross: number;
+  jdg_standard_min_base_gross: number;
+  parental_benefit_minimum_monthly: number;
+  rehabilitation_benefit_pregnancy_rate: number;
+  rehabilitation_benefit_max_days: number;
+  debt_threshold_min_wage_fraction: number;
+  weeks_per_year: number;
+  funeral_grant_pln: number;
+  claim_limitation_months: number;
 }
-

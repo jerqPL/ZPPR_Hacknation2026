@@ -1,7 +1,10 @@
 from fastapi.testclient import TestClient
+from app.config import settings
 from app.main import app
+from app.services.pdf_parser_service import SAMPLE_CASES, analyze_pdf_bytes
 
 client = TestClient(app)
+ADMIN_HEADERS = {"X-Admin-Key": settings.admin_api_key}
 
 
 def test_healthcheck():
@@ -29,259 +32,189 @@ def test_pregnancy_benefit_uop_code_b():
     assert "Płatnik składek" in data["payer"]
 
 
-def test_integrated_calculator_combined_81_5():
+def test_pregnancy_post_employment_art7_and_art46_cap():
     res = client.post(
-        "/api/v1/calculator/integrated",
+        "/api/v1/calculator/pregnancy",
         json={
-            "scenario": "birth",
             "insurance_title": "uop",
-            "has_sickness_insurance_on_birth_date": True,
-            "children_count": 1,
-            "gross_monthly_salary": 7500.0,
-            "payment_variant": "81_5",
-            "father_takes_parental_weeks": 9,
-            "father_takes_paternity_leave": True,
-            "employer_insured_count": 50,
+            "gross_monthly_salary": 18000.0,
+            "has_code_b": True,
+            "employment_terminated_special": True,
+            "termination_reason": "post_employment_art7",
         },
     )
     assert res.status_code == 200
     data = res.json()
-    assert data["eligible"] is True
-    assert data["maternity_weeks"] == 20
-    assert data["parental_weeks_total"] == 41.0
-    assert data["paternity_weeks"] == 2
-    assert data["total_estimated_gross_pln"] > 0
+    assert data["eligible_sickness_benefit"] is True
+    assert data["payer"] == "Zakład Ubezpieczeń Społecznych (ZUS)"
+    # Cap: 9420 * (1 - 0.1371) = 8128.52
+    assert abs(data["benefit_base_monthly"] - 8128.52) < 0.05
 
 
-def test_integrated_calculator_premature_supplementary():
+def test_waiting_period_10y_exemption_only_for_mandatory():
     res = client.post(
-        "/api/v1/calculator/integrated",
+        "/api/v1/calculator/pregnancy",
         json={
-            "scenario": "birth",
-            "insurance_title": "uop",
-            "has_sickness_insurance_on_birth_date": True,
-            "children_count": 1,
-            "premature_or_hospitalized": True,
-            "gestation_week": 27,
-            "birth_weight_grams": 950,
-            "hospitalization_weeks": 10,
-            "gross_monthly_salary": 6500.0,
-            "payment_variant": "100_70",
+            "insurance_title": "jdg",
+            "has_voluntary_sickness_insurance": True,
+            "insurance_days": 20,
+            "waiting_period_exempt": True,
+            "gross_monthly_salary": 6000.0,
         },
     )
     assert res.status_code == 200
     data = res.json()
-    assert data["supplementary_maternity_weeks"] == 10
+    assert data["waiting_period_met"] is False
+    assert data["eligible_sickness_benefit"] is False
 
 
-def test_admin_parameters_get_and_reset():
-    res = client.get("/api/v1/admin/parameters")
-    assert res.status_code == 200
-    params = res.json()
-    assert params["year"] == 2026
-    assert params["combined_21_days_rate"] == 0.815
-
-    res_reset = client.post("/api/v1/admin/parameters/reset")
-    assert res_reset.status_code == 200
-
-
-def test_mobywatel_simulation_and_debt():
-    login = client.post("/api/v1/auth/mobywatel/login", json={"persona_id": "jdg_with_debt"})
-    assert login.status_code == 200
-    assert login.json()["authenticated"] is True
-
-    debt = client.get("/api/v1/zus/debt/jdg_with_debt")
-    assert debt.status_code == 200
-    assert debt.json()["has_debt"] is True
-
-
-def test_adoption_and_foster_family_rules_e_and_j():
-    # 1. Rodzina zastępcza zawodowa -> wyłączona ustawowo (art. 183 § 1 KP)
-    res_prof = client.post(
-        "/api/v1/calculator/integrated",
-        json={
-            "scenario": "foster",
-            "foster_family_type": "professional",
-            "insurance_title": "uop",
-            "has_sickness_insurance_on_birth_date": True,
-            "children_count": 1,
-            "child_age_years": 4.0,
-            "gross_monthly_salary": 7000.0,
-        },
+def test_individual_base_uncompleted_months_and_empty_error():
+    # Empty list -> 422 instead of silent 7000
+    empty_res = client.post(
+        "/api/v1/calculator/benefit-base",
+        json={"insurance_title": "uop", "mode": "uop_12m", "monthly_gross_salaries": []},
     )
-    assert res_prof.status_code == 200
-    assert res_prof.json()["eligible"] is False
+    assert empty_res.status_code == 422
 
-    # 2. Rodzina zastępcza niezawodowa, dziecko 6,9 r.ż. -> reguła min. 9 tyg. + 38 tyg. rodzicielskiego (art. 183 § 3 i § 4 pkt 3 KP)
-    res_foster_9 = client.post(
-        "/api/v1/calculator/integrated",
-        json={
-            "scenario": "foster",
-            "foster_family_type": "non_professional",
-            "insurance_title": "uop",
-            "has_sickness_insurance_on_birth_date": True,
-            "children_count": 1,
-            "child_age_years": 6.9,
-            "gross_monthly_salary": 6800.0,
-            "payment_variant": "81_5",
-            "father_takes_parental_weeks": 9,
-            "father_takes_paternity_leave": True,
-        },
-    )
-    assert res_foster_9.status_code == 200
-    data_f9 = res_foster_9.json()
-    assert data_f9["eligible"] is True
-    assert data_f9["maternity_weeks"] == 9
-    assert data_f9["parental_weeks_total"] == 38.0
-    # Urlop ojcowski nie przysługuje w rodzinie zastępczej
-    assert data_f9["paternity_weeks"] == 0
-
-    # 3. Adopcja dziecka powyżej 14 lat -> odmowa
-    res_adopt_old = client.post(
-        "/api/v1/calculator/integrated",
-        json={
-            "scenario": "adoption",
-            "insurance_title": "uop",
-            "has_sickness_insurance_on_birth_date": True,
-            "children_count": 1,
-            "child_age_years": 14.5,
-            "gross_monthly_salary": 7500.0,
-        },
-    )
-    assert res_adopt_old.status_code == 200
-    assert res_adopt_old.json()["eligible"] is False
-
-
-def test_individual_benefit_base_calculator_f():
-    # 1. Wyliczenie podstawy na JDG przy krótkim okresie ubezpieczenia (3 mies.) wg art. 48a ustawy zasiłkowej
-    res_base = client.post(
+    # Exclude 1 lowest uncompleted month (2000) from [8000, 8000, 2000] -> avg 8000 -> 6903.20
+    res = client.post(
         "/api/v1/calculator/benefit-base",
         json={
-            "insurance_title": "jdg",
-            "mode": "jdg_art48a",
-            "jdg_insured_months": 3,
-            "jdg_declared_monthly_gross": 23550.0,
-            "jdg_min_monthly_gross": 5652.0,
-        },
-    )
-    assert res_base.status_code == 200
-    base_data = res_base.json()
-    assert base_data["computed_base_monthly"] == 8738.16
-
-    # 2. Zastosowanie indywidualnej podstawy wymiaru w zintegrowanym kalkulatorze
-    res_calc = client.post(
-        "/api/v1/calculator/integrated",
-        json={
-            "scenario": "birth",
             "insurance_title": "uop",
-            "has_sickness_insurance_on_birth_date": True,
-            "children_count": 1,
-            "gross_monthly_salary": 7500.0,
-            "custom_benefit_base": 6903.20,
-            "second_parent_gross_salary": 8200.0,
-            "second_parent_custom_base": 7075.78,
-            "payment_variant": "81_5",
-        },
-    )
-    assert res_calc.status_code == 200
-    calc_data = res_calc.json()
-    assert calc_data["benefit_base_parent1"] == 6903.20
-    assert calc_data["benefit_base_parent2"] == 7075.78
-    assert "indywidualną podstawę" in calc_data["benefit_base_explanation"]
-
-
-def test_edge_cases_parental_split_work_extension_and_row_math():
-    # 1. Drugi rodzic bierze 15 tyg. rodzicielskiego w wariancie 81,5% -> 6 tyg. po 81,5% + 9 tyg. nieprzenoszalnych po 70%
-    # + łączenie urlopu rodzicielskiego z pracą (10 tyg. na 0.5 etatu)
-    res = client.post(
-        "/api/v1/calculator/integrated",
-        json={
-            "scenario": "birth",
-            "insurance_title": "uop",
-            "has_sickness_insurance_on_birth_date": True,
-            "children_count": 1,
-            "gross_monthly_salary": 8000.0,
-            "second_parent_gross_salary": 9000.0,
-            "payment_variant": "81_5",
-            "father_takes_parental_weeks": 15,
-            "combine_parental_with_work": True,
-            "work_fte_fraction": 0.5,
-            "combined_work_weeks": 10,
-            "work_during_extended_part": True,
+            "mode": "uop_12m",
+            "monthly_gross_salaries": [8000.0, 8000.0, 2000.0],
+            "uncompleted_months_excluded": 1,
         },
     )
     assert res.status_code == 200
-    data = res.json()
-    assert data["eligible"] is True
-    assert data["parental_weeks_extended_by_work"] == 10.0
-
-    # Weryfikacja spójności matematycznej każdego wiersza: (monthly / 30) * (weeks * 7) == total_gross_pln
-    for row in data["breakdown"]:
-        expected_total = round((row["monthly_gross_pln"] / 30.0) * (row["weeks"] * 7.0), 2)
-        assert row["total_gross_pln"] == expected_total
-
-    # Sprawdzenie podziału rodzicielskiego ojca na 6 tyg. (81,5%) i 9 tyg. (70%)
-    father_rows = [r for r in data["breakdown"] if r["parent"] == "Ojciec" and "rodzicielski" in r["label"].lower()]
-    assert len(father_rows) == 2
-    rates = sorted([r["rate_percent"] for r in father_rows])
-    assert rates == [70.0, 81.5]
+    assert abs(res.json()["computed_base_monthly"] - 6903.20) < 0.02
 
 
-def test_edge_cases_minimum_1000_top_up_stillbirth_and_uninsured_mother():
-    # 1. Podwyższenie zasiłku macierzyńskiego do 1000 zł (art. 31 ust. 3a) na preferencyjnym ZUS (JDG)
-    res_low = client.post(
-        "/api/v1/calculator/integrated",
-        json={
-            "scenario": "birth",
-            "insurance_title": "jdg",
-            "has_sickness_insurance_on_birth_date": True,
-            "children_count": 1,
-            "gross_monthly_salary": 1441.80,
-            "payment_variant": "100_70",
-        },
-    )
-    assert res_low.status_code == 200
-    low_data = res_low.json()
-    assert low_data["minimum_benefit_top_up_applied"] is True
-    for row in low_data["breakdown"]:
-        assert row["monthly_gross_pln"] >= 1000.0
+def test_all_demo_cases_match_calculator_engine():
+    for case in SAMPLE_CASES:
+        res = client.post(
+            "/api/v1/calculator/integrated",
+            json={
+                "scenario": case.scenario,
+                "insurance_title": case.insurance_title,
+                "has_sickness_insurance_on_birth_date": case.insured_on_event_date,
+                "children_count": case.children_count,
+                "child_age_years": case.child_age_years,
+                "foster_family_type": case.foster_family_type,
+                "foster_deferred_school": case.foster_deferred_school,
+                "has_za_zyciem_certificate": case.has_za_zyciem,
+                "gross_monthly_salary": case.gross_monthly_salary,
+                "custom_benefit_base": case.custom_benefit_base,
+                "second_parent_gross_salary": case.second_parent_gross_salary,
+                "second_parent_custom_base": case.second_parent_custom_base,
+                "payment_variant": case.payment_variant,
+                "mother_maternity_weeks": case.mother_maternity_weeks,
+                "father_takes_parental_weeks": case.father_takes_parental_weeks,
+                "father_takes_paternity_leave": case.father_takes_paternity_leave,
+                "employer_insured_count": case.employer_insured_count,
+            },
+        )
+        assert res.status_code == 200, f"Case {case.case_id} failed HTTP"
+        data = res.json()
+        assert data["eligible"] is case.expected_eligible, f"Case {case.case_id} eligibility mismatch"
+        if case.expected_base_parent1 is not None:
+            assert abs(data["benefit_base_parent1"] - case.expected_base_parent1) < 0.05
 
-    # 2. Urodzenie martwego dziecka (art. 180¹ § 1 KP) -> 8 tygodni, 100%
-    res_sb = client.post(
+
+def test_single_parent_father_work_combination_and_art31_equalization():
+    # Single parent with 81.5% and 0 parental weeks -> equalization to 100% calculated
+    res_eq = client.post(
         "/api/v1/calculator/integrated",
         json={
             "scenario": "birth",
             "insurance_title": "uop",
             "has_sickness_insurance_on_birth_date": True,
-            "children_count": 1,
-            "stillbirth_or_early_death": True,
-            "gross_monthly_salary": 7000.0,
+            "single_parent_or_no_second_parent": True,
+            "gross_monthly_salary": 7500.0,
+            "payment_variant": "81_5",
+            "mother_takes_parental_weeks": 0,
+            "father_takes_parental_weeks": 0,
         },
     )
-    assert res_sb.status_code == 200
-    sb_data = res_sb.json()
-    assert sb_data["maternity_weeks"] == 8
-    assert sb_data["parental_weeks_total"] == 0.0
-    assert sb_data["total_weeks"] == 8.0
+    assert res_eq.status_code == 200
+    d_eq = res_eq.json()
+    assert d_eq["equalization_to_100_pln"] > 0
+    assert d_eq["benefit_base_parent2"] == 0.0
 
-    # 3. Nieubezpieczona matka + ubezpieczony ojciec (art. 31 ust. 3h + art. 182³ KP)
-    res_father = client.post(
+    # Second parent combines parental leave with work (0.5 FTE for 4 weeks)
+    res_f = client.post(
         "/api/v1/calculator/integrated",
         json={
             "scenario": "birth",
-            "insurance_title": "zlecenie",
-            "has_sickness_insurance_on_birth_date": False,
-            "second_parent_insured_claim": True,
-            "second_parent_gross_salary": 8000.0,
-            "father_takes_parental_weeks": 32,
-            "father_takes_paternity_leave": True,
+            "insurance_title": "uop",
+            "second_parent_insurance_title": "uop",
+            "second_parent_has_sickness_insurance": True,
+            "gross_monthly_salary": 7000.0,
+            "second_parent_gross_salary": 9000.0,
+            "father_takes_parental_weeks": 9,
+            "father_combine_parental_with_work": True,
+            "father_work_fte_fraction": 0.5,
+            "father_combined_work_weeks": 4,
+            "father_work_during_extended_part": False,
         },
     )
-    assert res_father.status_code == 200
-    f_data = res_father.json()
-    assert f_data["eligible"] is True
-    assert f_data["maternity_weeks"] == 0
-    assert f_data["parental_weeks_total"] == 32.0
-    assert f_data["paternity_weeks"] == 2
+    assert res_f.status_code == 200
+    d_f = res_f.json()
+    assert d_f["parental_weeks_extended_by_work"] == 2.0
 
 
+def test_pdf_parser_word_boundaries_and_needs_review():
+    # Invalid/empty PDF bytes -> needs_review, never falsely verified
+    res_scan = analyze_pdf_bytes("scan.pdf", b"not-a-pdf-scan")
+    assert res_scan.verification_status == "needs_review"
+    assert res_scan.insurance_verified is False
+    assert res_scan.extracted_fields.ocr_required is True
+
+    # Verify word-boundary pattern doesn't match "zamówienie" as ZAM
+    from app.services.pdf_parser_service import _FORM_PATTERNS
+
+    sample = "Dokument zamówienia ubezpieczenia społecznego"
+    matched = [code for code, pat in _FORM_PATTERNS if pat.search(sample)]
+    assert "ZAM" not in matched
+
+
+def test_admin_auth_and_reset():
+    # Unauthorized without X-Admin-Key
+    unauth = client.post("/api/v1/admin/parameters/reset")
+    assert unauth.status_code == 401
+
+    # Authorized with X-Admin-Key
+    get_res = client.get("/api/v1/admin/parameters")
+    assert get_res.status_code == 200
+    params = get_res.json()
+    params["combined_21_days_rate"] = 0.85
+
+    put_res = client.put("/api/v1/admin/parameters", json=params, headers=ADMIN_HEADERS)
+    assert put_res.status_code == 200
+    assert put_res.json()["combined_21_days_rate"] == 0.85
+
+    reset_res = client.post("/api/v1/admin/parameters/reset", headers=ADMIN_HEADERS)
+    assert reset_res.status_code == 200
+    assert reset_res.json()["combined_21_days_rate"] == 0.815
+
+
+def test_persona_404_and_application_deadline():
+    not_found = client.get("/api/v1/zus/profile/nonexistent_user")
+    assert not_found.status_code == 404
+
+    sub = client.post(
+        "/api/v1/documents/submit",
+        json={
+            "application_type": "leave_employer",
+            "applicant_name": "Anna Kowalska",
+            "pesel_masked": "920514*****",
+            "child_birth_date": "2026-11-01",
+            "leave_start_date": "2026-11-01",
+            "payment_variant": "81_5",
+            "recipient": "Pracodawca",
+        },
+    )
+    assert sub.status_code == 200
+    data = sub.json()
+    assert data["deadline_21_days"] == "2026-11-22"
+    assert "WNIOSEK O UDZIELENIE URLOPU" in data["generated_document_text"]

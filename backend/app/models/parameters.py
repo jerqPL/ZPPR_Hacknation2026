@@ -15,6 +15,7 @@ class LegalParameters(BaseModel):
     sickness_pay_employer_days_over_50: int = Field(14, ge=0)
 
     sickness_benefit_pregnancy_rate: float = Field(1.0, gt=0, le=1.0)
+    sickness_benefit_standard_rate: float = Field(0.8, gt=0, le=1.0)
     maternity_rate_standard: float = Field(1.0, gt=0, le=1.0)
     parental_rate_standard: float = Field(0.7, gt=0, le=1.0)
     combined_21_days_rate: float = Field(0.815, gt=0, le=1.0)
@@ -50,11 +51,16 @@ class LegalParameters(BaseModel):
     adoption_foster_min_maternity_weeks: int = Field(9, ge=1)
     adoption_foster_reduced_parental_weeks: int = Field(38, ge=1)
     adoption_foster_reduced_parental_weeks_za_zyciem: int = Field(62, ge=1)
+
     voluntary_sickness_max_monthly_gross: float = Field(23550.0, gt=0)
+    post_employment_sickness_cap_monthly_gross: float = Field(9420.0, gt=0)
     jdg_preferential_min_base_gross: float = Field(1441.8, gt=0)
     jdg_standard_min_base_gross: float = Field(5652.0, gt=0)
     parental_benefit_minimum_monthly: float = Field(1000.0, ge=0)
     rehabilitation_benefit_pregnancy_rate: float = Field(1.0, gt=0, le=1.0)
     rehabilitation_benefit_max_days: int = Field(360, ge=1)
 
-
+    debt_threshold_min_wage_fraction: float = Field(0.01, ge=0, le=1.0)
+    weeks_per_year: float = Field(52.1429, gt=50.0, le=53.0)
+    funeral_grant_pln: float = Field(7000.0, ge=0)
+    claim_limitation_months: int = Field(6, ge=1)

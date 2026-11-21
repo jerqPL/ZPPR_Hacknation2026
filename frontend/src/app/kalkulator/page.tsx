@@ -162,13 +162,29 @@ export default function IntegratedCalculatorPage() {
     }
     setPaymentVariant(found.payment_variant);
     setEmployerCount(found.employer_insured_count);
+    // Reset wszystkich opcji pomocniczych, aby stan formularza odpowiadał wynikowi przykładu
+    setPremature(false);
+    setHospWeeks(0);
+    setCombineWork(false);
+    setWorkFte(0.5);
+    setWorkWeeks(0);
+    setStillbirthOrEarlyDeath(false);
+    setMotherEarlyTransfer8Weeks(false);
+    setPreBirthWeeks(0);
+    setAdoptionShort9Weeks(false);
+    setPrevFosterMatWeeks(0);
+    setPrevFosterParWeeks(0);
+    if ((found.scenario || "birth") === "birth") {
+      setChildAgeYears(3);
+    }
+
     const defaultMat = MATERNITY_WEEKS_BY_CHILDREN[Math.min(found.children_count, 5)] || 20;
     if (found.mother_maternity_weeks !== undefined && found.mother_maternity_weeks !== null) {
       setMotherMaternityWeeks(found.mother_maternity_weeks);
     } else {
       setMotherMaternityWeeks(defaultMat);
     }
-    setFatherParentalWeeks(found.father_takes_parental_weeks ?? 9);
+    setFatherParentalWeeks(found.father_takes_parental_weeks ?? 0);
     setFatherPaternity(Boolean(found.father_takes_paternity_leave));
 
     setLoading(true);
@@ -190,7 +206,7 @@ export default function IntegratedCalculatorPage() {
         second_parent_custom_base: found.second_parent_custom_base ?? null,
         payment_variant: found.payment_variant,
         mother_maternity_weeks: found.mother_maternity_weeks ?? defaultMat,
-        father_takes_parental_weeks: found.father_takes_parental_weeks ?? 9,
+        father_takes_parental_weeks: found.father_takes_parental_weeks ?? 0,
         father_takes_paternity_leave: Boolean(found.father_takes_paternity_leave),
         employer_insured_count: found.employer_insured_count,
       });
@@ -205,15 +221,24 @@ export default function IntegratedCalculatorPage() {
   const handleComputeIndividualBase = async () => {
     setError(null);
     try {
-      const parsedSalaries = creatorSalariesText
-        .split(/[,\s;]+/)
-        .map((s) => Number(s.trim()))
-        .filter((n) => !Number.isNaN(n) && n >= 0);
+      // Poprawne parsowanie polskich zapisów kwot (np. "7 500,50; 8 000,00" lub "7500, 8000")
+      const normalizedChunks = creatorSalariesText
+        .split(/[;\n]+|,(?=\s*\d{3,})/)
+        .map((chunk) => chunk.replace(/[\s\u00A0]+/g, "").replace(",", ".").trim())
+        .filter((chunk) => chunk.length > 0);
+      const parsedSalaries = normalizedChunks
+        .map((s) => Number(s))
+        .filter((n) => !Number.isNaN(n) && n > 0);
+
+      if (creatorSubMode === "uop_12m" && parsedSalaries.length === 0) {
+        setError("Wpisz co najmniej jedno dodatnie miesięczne wynagrodzenie brutto (oddzielaj średnikiem, np. 7 500,50; 8 000).");
+        return;
+      }
 
       const res = await api.calculateIndividualBase({
         insurance_title: insuranceTitle,
         mode: creatorSubMode,
-        monthly_gross_salaries: parsedSalaries.length > 0 ? parsedSalaries : [grossSalary],
+        monthly_gross_salaries: parsedSalaries,
         quarterly_bonuses_total: Number(creatorQuarterlyBonus),
         annual_bonus_total: Number(creatorAnnualBonus),
         uncompleted_months_excluded: Number(creatorExcludedMonths),

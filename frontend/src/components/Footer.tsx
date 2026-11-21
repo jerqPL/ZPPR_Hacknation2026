@@ -26,15 +26,14 @@ export function Footer() {
               Zasiłkowy Przewodnik Przyszłego Rodzica (ZPPR)
             </h2>
             <p className="mt-2 text-xs leading-relaxed text-slate-600 dark:text-slate-400">
-              Prototyp narzędzia informacyjno-kalkulacyjnego przygotowany na HackNation 2026
-              (wyzwanie ZUS). Logowanie mObywatel, pobieranie danych ZUS, stan zadłużenia,
-              e-ZLA, PUE/eZUS oraz wysyłka wniosków działają w trybie symulacji.
+              Narzędzie informacyjno-kalkulacyjne wspierające przyszłych rodziców w ustalaniu
+              uprawnień do świadczeń z ubezpieczenia chorobowego i macierzyńskiego w 2026 roku.
+              Integracje z mObywatel, PUE/eZUS, e-ZLA, stanem zadłużenia oraz składaniem wniosków
+              działają w trybie symulacji.
             </p>
             <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-              <strong className="text-slate-700 dark:text-slate-200">Zakres użycia AI:</strong>{" "}
-              Szkielet aplikacji wykorzystuje deterministyczny silnik reguł prawnych (bez
-              halucynacji w wyliczeniach); architektura przewiduje opcjonalne wsparcie AI do OCR
-              skanowanych wniosków PDF oraz asystenta wyjaśnień.
+              Wyliczenia mają charakter informacyjny i opierają się na ustawie zasiłkowej oraz
+              Kodeksie pracy (stan prawny 2026).
             </p>
           </div>
           <div>
