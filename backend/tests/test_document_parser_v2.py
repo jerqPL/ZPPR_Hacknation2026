@@ -172,3 +172,29 @@ def test_multi_document_case_merge_and_conflict_detection():
     body = r.json()
     assert body["merged"]["suggested_gross_salary"] == 8000.0
     assert body["merged"]["extracted_fields"]["children_count"] == 2
+
+
+def test_poswiadczenie_debt_nie_vs_tak():
+    """Poświadczenie ZUS z zapisem '...figuruje zadłużenie ...: NIE' musi ustawiać has_contribution_debt=False."""
+    pdf_no_debt = _make_text_pdf(
+        [
+            "Poświadczenie ubezpieczenia chorobowego",
+            "8. Na koncie płatnika składek figuruje zadłużenie z tytułu składek na ubezpieczenia",
+            "społeczne na datę badania, tj 2024-01-05: NIE",
+        ]
+    )
+    res_no = analyze_pdf_bytes("posw_no_debt.pdf", pdf_no_debt)
+    assert res_no.extracted_fields.has_contribution_debt is False
+    assert res_no.extracted_fields.contribution_debt_pln == 0.0
+    assert "Zadłużenie składek (art. 2a)" not in res_no.extracted_fields.key_extracted_fields
+
+    pdf_with_debt = _make_text_pdf(
+        [
+            "Poświadczenie ubezpieczenia chorobowego",
+            "8. Na koncie płatnika składek figuruje zadłużenie z tytułu składek na ubezpieczenia",
+            "społeczne na datę badania, tj 2024-01-05: TAK",
+        ]
+    )
+    res_yes = analyze_pdf_bytes("posw_with_debt.pdf", pdf_with_debt)
+    assert res_yes.extracted_fields.has_contribution_debt is True
+

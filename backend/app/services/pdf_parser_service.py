@@ -1095,17 +1095,26 @@ def analyze_pdf_bytes(filename: str, content: bytes) -> PdfAnalysisResult:
         emp_count = 10
         notes.append("Na formularzu Z-3 zaznaczono płatnika zgłaszającego do 20 ubezpieczonych (wypłaca ZUS).")
 
-    # 10. Zadłużenie składkowe (art. 2a)
+    # 10. Zadłużenie składkowe (art. 2a) — rozróżnienie "...figuruje zadłużenie...: NIE" vs ": TAK"
     has_debt: bool | None = None
     debt_pln: float | None = None
-    if re.search(r"ZADŁUŻENI[EA]\s+Z\s+TYTUŁU\s+SKŁADEK|ART\.\s*2A\s+USTAWY|ZALEGŁOŚC[IĄ]\s+SKŁADKOW", clean_upper):
-        has_debt = True
-        m_debt = re.search(r"(?:ZADŁUŻENI[EA]|ZALEGŁOŚ[ĆC])[^\d]{0,40}(\d{1,3}(?:[\s\xa0\.]\d{3})*[,\.]\d{2})", clean_upper)
-        if m_debt:
-            debt_pln = _parse_single_amount(m_debt.group(1), min_val=0.01, max_val=500000.0)
-    elif re.search(r"NIE\s+ZALEGA\s+W\s+OPŁACANIU\s+SKŁADEK|BRAK\s+ZADŁUŻENIA", clean_upper):
+    if re.search(
+        r"FIGURUJE\s+ZAD[LŁ]U[ŻZ]ENI[EA][\s\S]{0,120}?:\s*NIE\b|"
+        r"ZAD[LŁ]U[ŻZ]ENI[EA]\s+Z\s+TYTU[LŁ]U\s+SK[LŁ]ADEK[\s\S]{0,100}?:\s*NIE\b|"
+        r"NIE\s+ZALEGA\s+W\s+OP[LŁ]ACANIU\s+SK[LŁ]ADEK|BRAK\s+ZAD[LŁ]U[ŻZ]ENIA",
+        clean_upper,
+    ):
         has_debt = False
         debt_pln = 0.0
+    elif re.search(
+        r"FIGURUJE\s+ZAD[LŁ]U[ŻZ]ENI[EA][\s\S]{0,120}?:\s*TAK\b|"
+        r"ZAD[LŁ]U[ŻZ]ENI[EA]\s+Z\s+TYTU[LŁ]U\s+SK[LŁ]ADEK|ART\.\s*2A\s+USTAWY|ZALEG[LŁ]O[ŚS]C[IĄ]\s+SK[LŁ]ADKOW",
+        clean_upper,
+    ):
+        has_debt = True
+        m_debt = re.search(r"(?:ZAD[LŁ]U[ŻZ]ENI[EA]|ZALEG[LŁ]O[ŚS][ĆC])[^\d]{0,40}(\d{1,3}(?:[\s\xa0\.]\d{3})*[,\.]\d{2})", clean_upper)
+        if m_debt:
+            debt_pln = _parse_single_amount(m_debt.group(1), min_val=0.01, max_val=500000.0)
 
     # 11. Ostrożna weryfikacja statusu ubezpieczenia (3-stanowa: confirmed / denied / unknown; odporna na braki diakrytyków OCR)
     has_explicit_denial = bool(
