@@ -9,21 +9,53 @@
 }
 
 body {
-  background-color: #f8fafc;
+  background-color: #f6f9f7;
+  background-image: radial-gradient(
+    ellipse 80% 40% at 50% -10%,
+    rgba(0, 120, 52, 0.07),
+    transparent
+  );
   color: #0f172a;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
   transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 .dark body {
-  background-color: #0b120f;
+  background-color: #09100d;
+  background-image: radial-gradient(
+    ellipse 80% 40% at 50% -10%,
+    rgba(0, 120, 52, 0.16),
+    transparent
+  );
   color: #f1f5f9;
+}
+
+input:not([type="checkbox"]):not([type="radio"]),
+select,
+textarea {
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+}
+
+input:not([type="checkbox"]):not([type="radio"]):focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: #007834;
+  box-shadow: 0 0 0 3px rgba(0, 120, 52, 0.16);
 }
 
 .dark input:not([type="checkbox"]):not([type="radio"]),
 .dark select,
 .dark textarea {
-  background-color: #0f1a15;
-  border-color: #273b32;
+  background-color: #0e1914;
+  border-color: #23382e;
   color: #f1f5f9;
+}
+
+.dark input:not([type="checkbox"]):not([type="radio"]):focus,
+.dark select:focus,
+.dark textarea:focus {
+  border-color: #10b981;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
 }

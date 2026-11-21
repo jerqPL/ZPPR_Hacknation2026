@@ -88,7 +88,7 @@ export default function DocumentsPage() {
   return (
     <div>
       <PageHeader
-        badge="Moduł 4 • Procedury i wnioski (pkt g)"
+        badge="Dokumenty i wnioski"
         title="Dokumenty, terminy i kreator składania wniosków"
         description="Sprawdź, czy Twoje dokumenty trafiają do płatnika składek (pracodawcy >20 ubezpieczonych) czy bezpośrednio do ZUS, poznaj aktualne formularze (ZAM po likwidacji ZUR i ZAO od 24.10.2026, Z-3, Z-3a, ZAS-53) i zasymuluj złożenie wniosku o urlop, zasiłek lub akt urodzenia."
       />

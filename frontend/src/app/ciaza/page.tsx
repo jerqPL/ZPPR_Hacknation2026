@@ -71,7 +71,7 @@ export default function PregnancyPage() {
   return (
     <div>
       <PageHeader
-        badge="Moduł 1 • Okres ciąży (pkt a)"
+        badge="Okres ciąży"
         title="Świadczenia w czasie ciąży"
         description="Sprawdź uprawnienia do zasiłku chorobowego (kod literowy B = 100% do 270 dni), świadczenia rehabilitacyjnego (100% do 12 miesięcy) oraz zasiłku w wysokości zasiłku macierzyńskiego po ustaniu zatrudnienia."
       />
@@ -181,7 +181,7 @@ export default function PregnancyPage() {
           <div>
             <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
               <InfoTooltip
-                label="Indywidualna podstawa wymiaru zasiłku (opcjonalnie, zł po -13,71% — pkt f)"
+                label="Indywidualna podstawa wymiaru zasiłku (opcjonalnie, zł po -13,71%)"
                 tooltip="Jeśli znasz swoją dokładną indywidualną podstawę wymiaru zasiłku (np. z formularza Z-3/Z-3a lub poświadczenia ZUS), wpisz ją tutaj."
               />
             </label>
@@ -289,8 +289,8 @@ export default function PregnancyPage() {
                 <span
                   className={`rounded-full px-3 py-1 text-xs font-semibold ${
                     result.eligible_sickness_benefit || result.eligible_maternity_equivalent
-                      ? "bg-emerald-100 text-emerald-800"
-                      : "bg-red-100 text-red-800 dark:text-red-200"
+                      ? "border border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/15 dark:text-emerald-300"
+                      : "border border-red-200 bg-red-50 text-red-800 dark:border-red-500/30 dark:bg-red-500/15 dark:text-red-300"
                   }`}
                 >
                   {result.eligible_maternity_equivalent

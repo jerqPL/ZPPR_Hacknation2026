@@ -18,7 +18,7 @@ export default function SupportPage() {
   return (
     <div>
       <PageHeader
-        badge="Moduł 7 • Szczególne sytuacje"
+        badge="Wsparcie i pomoc"
         title="Wsparcie w trudnych sytuacjach i podmioty charytatywne"
         description="Rzetelne informacje o uprawnieniach w przypadku urodzenia martwego dziecka, zgonu dziecka, wcześniactwa lub ciężkiej choroby oraz katalog podmiotów o charakterze wyłącznie charytatywnym."
       />

@@ -108,13 +108,13 @@ export default function SampleCasesPdfPage() {
   return (
     <div>
       <PageHeader
-        badge="Moduł 3 • Walidacja i testy (pkt f, e, j)"
+        badge="Analiza wniosków PDF"
         title="Weryfikacja wniosków PDF i symulacja spraw z zestawów ZUS"
         description="Prześlij formularz ZUS w formacie PDF (np. ZAM, Z-3, Z-3a, poświadczenie ubezpieczenia) lub przetestuj jedną z wbudowanych spraw konkursowych z indywidualną podstawą wymiaru zasiłku."
       />
 
       {error && (
-        <div className="mb-6 rounded-lg border border-red-200 bg-red-50 dark:border-red-800/60 dark:bg-red-950/40 p-3 text-xs text-red-700">
+        <div className="mb-6 rounded-lg border border-red-200 bg-red-50 dark:border-red-800/60 dark:bg-red-950/40 p-3 text-xs text-red-700 dark:text-red-300">
           {error}
         </div>
       )}
@@ -213,10 +213,10 @@ export default function SampleCasesPdfPage() {
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="rounded bg-slate-100 dark:bg-[#16241d] px-2 py-0.5 text-[10px] font-bold uppercase text-slate-700 dark:text-slate-300">
                         {c.scenario === "adoption"
-                          ? "Adopcja (pkt e/j)"
+                          ? "Adopcja"
                           : c.scenario === "foster"
-                          ? "Rodzina zastępcza (pkt e/j)"
-                          : "Poród (pkt b/f)"}
+                          ? "Rodzina zastępcza"
+                          : "Poród"}
                       </span>
                       {c.custom_benefit_base && (
                         <span className="rounded bg-[#e6f4ec] dark:bg-[#007834]/20 px-2 py-0.5 text-[10px] font-bold text-[#005a27] dark:text-emerald-300">

@@ -45,7 +45,7 @@ export default function PueZusSimulationPage() {
   return (
     <div>
       <PageHeader
-        badge="Moduł 5 • Symulacje e-Usług"
+        badge="Konto ZUS i mObywatel"
         title="Symulacja mObywatel, danych z ZUS, zadłużenia, e-ZLA i PUE/eZUS"
         description="Wybierz profil testowy, aby zasymulować logowanie przez mObywatel i automatyczne pobranie danych z systemów ZUS do kalkulatorów."
       />
@@ -237,7 +237,7 @@ export default function PueZusSimulationPage() {
                 Wyślij zapytanie przez PUE/eZUS (symulacja)
               </button>
               {ticketInfo && (
-                <p className="rounded bg-emerald-50 p-2.5 text-xs text-emerald-900 dark:text-emerald-200">{ticketInfo}</p>
+                <p className="rounded-lg border border-emerald-200 bg-emerald-50 p-2.5 text-xs text-emerald-900 dark:border-emerald-500/30 dark:bg-emerald-500/15 dark:text-emerald-200">{ticketInfo}</p>
               )}
             </form>
           </section>

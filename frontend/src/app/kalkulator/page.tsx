@@ -297,7 +297,7 @@ export default function IntegratedCalculatorPage() {
   return (
     <div>
       <PageHeader
-        badge="Moduł 2 • Zintegrowany Kalkulator (pkt b, c, d, e, f, j)"
+        badge="Zintegrowany Kalkulator"
         title="Zintegrowany Kalkulator Zasiłku Macierzyńskiego i Rodzicielskiego"
         description="Jedno narzędzie łączące wszystkie warianty: poród, podział opieki między oboje rodziców, łączenie urlopu rodzicielskiego z pracą, adopcję i rodzinę zastępczą (niezawodową i zawodową), indywidualną podstawę wymiaru zasiłku oraz symulację spraw z zestawów ZUS. Najedź kursorem na dowolną nazwę rubryki, aby zobaczyć podpowiedź."
       />
@@ -307,7 +307,7 @@ export default function IntegratedCalculatorPage() {
         <div className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
           <div>
             <p className="text-xs font-bold uppercase tracking-wide text-[#005a27] dark:text-emerald-300">
-              Symulacja konkretnej sprawy z zestawów ZUS (pkt f, e, j)
+              Symulacja konkretnej sprawy z zestawów ZUS
             </p>
             <p className="text-xs text-slate-700 dark:text-slate-300">
               Wybierz gotową sprawę z zestawu testowego ZUS, aby automatycznie wypełnić indywidualną
@@ -354,7 +354,7 @@ export default function IntegratedCalculatorPage() {
           <div>
             <label className="block text-xs font-bold uppercase tracking-wide text-slate-600 dark:text-slate-400">
               <InfoTooltip
-                label="1. Scenariusz rodzicielstwa (pkt b, e, j)"
+                label="1. Scenariusz rodzicielstwa"
                 tooltip="Wybierz, czy zasiłek dotyczy urodzenia dziecka, przysposobienia (adopcji do 14 r.ż.) czy przyjęcia dziecka na wychowanie jako rodzina zastępcza (do 7 lub 10 r.ż.)."
               />
             </label>
@@ -390,8 +390,8 @@ export default function IntegratedCalculatorPage() {
             <div className="space-y-3 rounded-lg border border-[#007834]/30 bg-slate-50 p-3.5 dark:border-emerald-900 dark:bg-[#16241d]">
               <p className="text-xs font-bold text-[#005a27] dark:text-emerald-300">
                 {scenario === "adoption"
-                  ? "Parametry przysposobienia (adopcji) — art. 183 Kodeksu pracy (pkt e, j)"
-                  : "Parametry rodziny zastępczej — art. 183 Kodeksu pracy (pkt e, j)"}
+                  ? "Parametry przysposobienia (adopcji) — art. 183 Kodeksu pracy"
+                  : "Parametry rodziny zastępczej — art. 183 Kodeksu pracy"}
               </p>
 
               {scenario === "foster" && (
@@ -581,7 +581,7 @@ export default function IntegratedCalculatorPage() {
           <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-3.5 dark:border-emerald-950 dark:bg-[#16241d]">
             <p className="text-xs font-bold text-slate-800 dark:text-slate-200">
               <InfoTooltip
-                label="Podstawa wymiaru zasiłku — standardowa lub indywidualna (pkt f)"
+                label="Podstawa wymiaru zasiłku"
                 tooltip="Możesz wyliczyć podstawę automatycznie z kwoty brutto, wpisać indywidualną podstawę wymiaru bezpośrednio z dokumentu (Z-3/Z-3a) lub użyć kreatora (średnia z 12 mies. z premiami, art. 48a dla JDG, art. 43)."
               />
             </p>
@@ -922,7 +922,7 @@ export default function IntegratedCalculatorPage() {
           <div className="space-y-2 rounded-lg border border-slate-200 p-3 dark:border-emerald-950">
             <p className="text-xs font-bold text-slate-700 dark:text-slate-300">
               <InfoTooltip
-                label="2. Podział opieki między rodziców (pkt d, e, j)"
+                label="2. Podział opieki między rodziców"
                 tooltip="Urlopem macierzyńskim (po pierwszych 14 tygodniach przy porodzie, lub po 8 tyg. w sytuacjach szczególnych) lub urlopem na warunkach macierzyńskiego i rodzicielskim możecie się podzielić między oboje rodziców."
               />
             </p>
@@ -1005,7 +1005,7 @@ export default function IntegratedCalculatorPage() {
           {/* Opcje zaawansowane */}
           <div className="space-y-2 rounded-lg border border-slate-200 p-3 dark:border-emerald-950">
             <p className="text-xs font-bold text-slate-700 dark:text-slate-300">
-              3. Opcje dodatkowe i sytuacje szczególne (pkt b, c, i)
+              3. Opcje dodatkowe i sytuacje szczególne
             </p>
             <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300">
               <input
@@ -1093,7 +1093,7 @@ export default function IntegratedCalculatorPage() {
                 className="h-4 w-4 accent-[#007834]"
               />
               <InfoTooltip
-                label="Łączenie urlopu rodzicielskiego z pracą (maks. 1/2 etatu — pkt c)"
+                label="Łączenie urlopu rodzicielskiego z pracą (maks. 1/2 etatu)"
                 tooltip="Pracownik na umowie o pracę może pracować u swojego pracodawcy maks. na pół etatu podczas urlopu rodzicielskiego — urlop ulega wtedy proporcjonalnemu wydłużeniu (art. 182¹ᵉ i 182¹ᶠ KP)."
               />
             </label>
@@ -1253,7 +1253,7 @@ export default function IntegratedCalculatorPage() {
                   {result.benefit_base_explanation && (
                     <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700 dark:border-emerald-950 dark:bg-[#16241d] dark:text-slate-300">
                       <p className="font-bold text-slate-900 dark:text-slate-100">
-                        Sposób ustalenia podstawy wymiaru zasiłku (pkt f):
+                        Sposób ustalenia podstawy wymiaru zasiłku:
                       </p>
                       <p className="mt-1">
                         <strong>Rodzic 1:</strong> {result.benefit_base_explanation}
