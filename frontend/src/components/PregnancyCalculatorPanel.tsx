@@ -13,6 +13,13 @@ import type {
 
 export const PREGNANCY_PREFILL_STORAGE_KEY = "zppr-prefill-pregnancy";
 
+function formatPln(amount: number): string {
+  return `${amount.toLocaleString("pl-PL", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}\u00A0zł`;
+}
+
 export function PregnancyCalculatorPanel() {
   const { user } = useUser();
 
@@ -599,15 +606,15 @@ export function PregnancyCalculatorPanel() {
               </p>
 
               <div className="mt-5 grid gap-4 sm:grid-cols-3">
-                <div className="rounded-lg bg-slate-50 dark:bg-[#16241d] p-4">
+                <div className="flex flex-col justify-between rounded-lg bg-slate-50 dark:bg-[#16241d] p-4">
                   <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
                     Podstawa wymiaru (mies.)
                   </p>
-                  <p className="mt-1 text-xl font-bold text-slate-900 dark:text-slate-100">
-                    {result.benefit_base_monthly.toFixed(2)} zł
+                  <p className="mt-2 whitespace-nowrap text-xl font-bold tabular-nums text-slate-900 dark:text-slate-100">
+                    {formatPln(result.benefit_base_monthly)}
                   </p>
                 </div>
-                <div className="rounded-lg bg-[#e6f4ec] dark:bg-[#007834]/20 p-4">
+                <div className="flex flex-col justify-between rounded-lg bg-[#e6f4ec] dark:bg-[#007834]/20 p-4">
                   <p className="text-xs font-medium text-[#005a27] dark:text-emerald-300">
                     {result.eligible_post_birth_maternity_art30 && !result.eligible_maternity_equivalent
                       ? `Prognoza PO porodzie (${result.benefit_rate_percent}%)`
@@ -617,16 +624,16 @@ export function PregnancyCalculatorPanel() {
                       ? `Po spłacie zadłużenia (${result.benefit_rate_percent}%)`
                       : `Zasiłek miesięczny (${result.benefit_rate_percent}%)`}
                   </p>
-                  <p className="mt-1 text-xl font-bold text-[#005a27] dark:text-emerald-300">
-                    {result.monthly_benefit_gross.toFixed(2)} zł
+                  <p className="mt-2 whitespace-nowrap text-xl font-bold tabular-nums text-[#005a27] dark:text-emerald-300">
+                    {formatPln(result.monthly_benefit_gross)}
                   </p>
                 </div>
-                <div className="rounded-lg bg-slate-50 dark:bg-[#16241d] p-4">
+                <div className="flex flex-col justify-between rounded-lg bg-slate-50 dark:bg-[#16241d] p-4">
                   <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
                     Stawka dzienna (1/30)
                   </p>
-                  <p className="mt-1 text-xl font-bold text-slate-900 dark:text-slate-100">
-                    {result.daily_benefit_gross.toFixed(2)} zł
+                  <p className="mt-2 whitespace-nowrap text-xl font-bold tabular-nums text-slate-900 dark:text-slate-100">
+                    {formatPln(result.daily_benefit_gross)}
                   </p>
                 </div>
               </div>
@@ -695,20 +702,20 @@ export function PregnancyCalculatorPanel() {
             </p>
             {result && result.eligible_sickness_benefit && result.rehabilitation_max_days > 0 && (
               <div className="mt-3.5 grid gap-3 rounded-lg bg-slate-50 dark:bg-[#16241d] p-3.5 sm:grid-cols-2">
-                <div>
+                <div className="flex flex-col justify-between">
                   <span className="text-xs text-slate-500 dark:text-slate-400">
                     Szacowane świadczenie rehabilitacyjne (100% mies., przed waloryzacją):
                   </span>
-                  <p className="mt-0.5 text-base font-bold text-[#005a27] dark:text-emerald-300">
-                    {result.rehabilitation_monthly_gross.toFixed(2)} zł
+                  <p className="mt-1 whitespace-nowrap text-base font-bold tabular-nums text-[#005a27] dark:text-emerald-300">
+                    {formatPln(result.rehabilitation_monthly_gross)}
                   </p>
                 </div>
-                <div>
+                <div className="flex flex-col justify-between">
                   <span className="text-xs text-slate-500 dark:text-slate-400">
                     Stawka dzienna (maks. {result.rehabilitation_max_days} dni):
                   </span>
-                  <p className="mt-0.5 text-base font-bold text-slate-900 dark:text-slate-100">
-                    {result.rehabilitation_daily_gross.toFixed(2)} zł / dzień
+                  <p className="mt-1 whitespace-nowrap text-base font-bold tabular-nums text-slate-900 dark:text-slate-100">
+                    {formatPln(result.rehabilitation_daily_gross)} / dzień
                   </p>
                 </div>
               </div>

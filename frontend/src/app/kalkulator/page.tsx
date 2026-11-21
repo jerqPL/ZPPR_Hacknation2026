@@ -41,6 +41,13 @@ function parsePolishSalaryList(input: string): number[] {
     .filter((n) => !Number.isNaN(n) && n > 0);
 }
 
+function formatPln(amount: number): string {
+  return `${amount.toLocaleString("pl-PL", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}\u00A0zł`;
+}
+
 export default function IntegratedCalculatorPage() {
   const { user } = useUser();
 
@@ -1963,40 +1970,40 @@ export default function IntegratedCalculatorPage() {
                 </div>
               ) : (
                 <>
-                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                    <div className="rounded-lg bg-[#e6f4ec] p-4 dark:bg-[#007834]/20">
+                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    <div className="flex flex-col justify-between rounded-lg bg-[#e6f4ec] p-4 dark:bg-[#007834]/20">
                       <p className="text-xs font-medium text-[#005a27] dark:text-emerald-300">
                         Łączny czas urlopów
                       </p>
-                      <p className="mt-1 text-2xl font-bold text-[#005a27] dark:text-emerald-300">
-                        {result.total_weeks} tyg.
+                      <p className="mt-2 whitespace-nowrap text-xl font-bold tabular-nums text-[#005a27] dark:text-emerald-300">
+                        {result.total_weeks}&nbsp;tyg.
                       </p>
                     </div>
-                    <div className="rounded-lg bg-slate-50 p-4 dark:bg-[#16241d]">
+                    <div className="flex flex-col justify-between rounded-lg bg-slate-50 p-4 dark:bg-[#16241d]">
                       <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
                         Szacowana suma brutto
                       </p>
-                      <p className="mt-1 text-xl font-bold text-slate-900 dark:text-slate-100">
-                        {result.total_estimated_gross_pln.toLocaleString("pl-PL")} zł
+                      <p className="mt-2 whitespace-nowrap text-lg font-bold tabular-nums text-slate-900 dark:text-slate-100 xl:text-xl">
+                        {formatPln(result.total_estimated_gross_pln)}
                       </p>
                     </div>
-                    <div className="rounded-lg bg-slate-50 p-4 dark:bg-[#16241d]">
+                    <div className="flex flex-col justify-between rounded-lg bg-slate-50 p-4 dark:bg-[#16241d]">
                       <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
                         Podstawa Rodzica 1
                       </p>
-                      <p className="mt-1 text-xl font-bold text-slate-900 dark:text-slate-100">
+                      <p className="mt-2 whitespace-nowrap text-lg font-bold tabular-nums text-slate-900 dark:text-slate-100 xl:text-xl">
                         {result.benefit_base_parent1 > 0
-                          ? `${result.benefit_base_parent1.toFixed(2)} zł`
+                          ? formatPln(result.benefit_base_parent1)
                           : "—"}
                       </p>
                     </div>
-                    <div className="rounded-lg bg-slate-50 p-4 dark:bg-[#16241d]">
+                    <div className="flex flex-col justify-between rounded-lg bg-slate-50 p-4 dark:bg-[#16241d]">
                       <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
                         Podstawa Rodzica 2
                       </p>
-                      <p className="mt-1 text-xl font-bold text-slate-900 dark:text-slate-100">
+                      <p className="mt-2 whitespace-nowrap text-lg font-bold tabular-nums text-slate-900 dark:text-slate-100 xl:text-xl">
                         {result.benefit_base_parent2 > 0
-                          ? `${result.benefit_base_parent2.toFixed(2)} zł`
+                          ? formatPln(result.benefit_base_parent2)
                           : "—"}
                       </p>
                     </div>
@@ -2022,7 +2029,7 @@ export default function IntegratedCalculatorPage() {
                   {result.equalization_to_100_pln > 0 && (
                     <div className="mt-4 rounded-lg border border-emerald-300 bg-emerald-50 p-3.5 text-sm leading-relaxed font-medium text-emerald-900 dark:border-emerald-800/60 dark:bg-emerald-950/40 dark:text-emerald-200">
                       <strong>Jednorazowe wyrównanie do 100% (art. 31 ust. 4 ustawy zasiłkowej):</strong>{" "}
-                      +{result.equalization_to_100_pln.toFixed(2)} zł brutto za okres urlopu
+                      +{formatPln(result.equalization_to_100_pln)} brutto za okres urlopu
                       macierzyńskiego (niewykorzystanie ani jednego dnia zasiłku za urlop
                       rodzicielski w wariancie {combinedRateStr}). Kwota została doliczona do łącznej sumy.
                     </div>
@@ -2055,11 +2062,11 @@ export default function IntegratedCalculatorPage() {
                       <thead>
                         <tr className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-600 dark:border-emerald-950 dark:bg-[#16241d] dark:text-slate-400">
                           <th className="p-3">Rodzaj urlopu / zasiłku</th>
-                          <th className="p-3">Rodzic</th>
-                          <th className="p-3 text-right">Tyg.</th>
-                          <th className="p-3 text-right">Stawka</th>
-                          <th className="p-3 text-right">Miesięcznie</th>
-                          <th className="p-3 text-right">Łącznie brutto</th>
+                          <th className="whitespace-nowrap p-3">Rodzic</th>
+                          <th className="whitespace-nowrap p-3 text-right">Tyg.</th>
+                          <th className="whitespace-nowrap p-3 text-right">Stawka</th>
+                          <th className="whitespace-nowrap p-3 text-right">Miesięcznie</th>
+                          <th className="whitespace-nowrap p-3 text-right">Łącznie brutto</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -2076,23 +2083,25 @@ export default function IntegratedCalculatorPage() {
                                 </p>
                               )}
                             </td>
-                            <td className="p-3 text-slate-700 dark:text-slate-300">
+                            <td className="whitespace-nowrap p-3 text-slate-700 dark:text-slate-300">
                               {row.parent}
                             </td>
-                            <td className="p-3 text-right font-semibold">
+                            <td className="whitespace-nowrap p-3 text-right font-semibold tabular-nums">
                               {row.weeks}
                               {row.days != null && row.days % 7 !== 0 && (
                                 <span className="block text-xs font-normal text-slate-500 dark:text-slate-400">
-                                  ({row.days} dni)
+                                  ({row.days}&nbsp;dni)
                                 </span>
                               )}
                             </td>
-                            <td className="p-3 text-right">{row.rate_percent}%</td>
-                            <td className="p-3 text-right">
-                              {row.monthly_gross_pln.toFixed(2)} zł
+                            <td className="whitespace-nowrap p-3 text-right tabular-nums">
+                              {row.rate_percent}%
                             </td>
-                            <td className="p-3 text-right font-semibold text-[#005a27] dark:text-emerald-300">
-                              {row.total_gross_pln.toFixed(2)} zł
+                            <td className="whitespace-nowrap p-3 text-right tabular-nums">
+                              {formatPln(row.monthly_gross_pln)}
+                            </td>
+                            <td className="whitespace-nowrap p-3 text-right font-semibold tabular-nums text-[#005a27] dark:text-emerald-300">
+                              {formatPln(row.total_gross_pln)}
                             </td>
                           </tr>
                         ))}
@@ -2101,14 +2110,16 @@ export default function IntegratedCalculatorPage() {
                             <td className="p-3 font-semibold text-[#005a27] dark:text-emerald-300">
                               Jednorazowe wyrównanie do 100% za urlop macierzyński (art. 31 ust. 4)
                             </td>
-                            <td className="p-3 text-slate-700 dark:text-slate-300">
+                            <td className="whitespace-nowrap p-3 text-slate-700 dark:text-slate-300">
                               Rodzic 1 / Rodzic 2
                             </td>
-                            <td className="p-3 text-right font-semibold">—</td>
-                            <td className="p-3 text-right">{eqDiffPpStr}</td>
-                            <td className="p-3 text-right">—</td>
-                            <td className="p-3 text-right font-bold text-[#005a27] dark:text-emerald-300">
-                              +{result.equalization_to_100_pln.toFixed(2)} zł
+                            <td className="whitespace-nowrap p-3 text-right font-semibold">—</td>
+                            <td className="whitespace-nowrap p-3 text-right tabular-nums">
+                              {eqDiffPpStr}
+                            </td>
+                            <td className="whitespace-nowrap p-3 text-right">—</td>
+                            <td className="whitespace-nowrap p-3 text-right font-bold tabular-nums text-[#005a27] dark:text-emerald-300">
+                              +{formatPln(result.equalization_to_100_pln)}
                             </td>
                           </tr>
                         )}
