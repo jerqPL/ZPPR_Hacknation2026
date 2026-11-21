@@ -13,12 +13,62 @@ class InsuranceTitle(str, Enum):
 class BenefitScenario(str, Enum):
     BIRTH = "birth"  # Poród (rodzice biologiczni)
     ADOPTION = "adoption"  # Przysposobienie (adopcja)
-    FOSTER = "foster"  # Rodzina zastępcza niezawodowa
+    FOSTER = "foster"  # Rodzina zastępcza (niezawodowa / zawodowa)
+
+
+class FosterFamilyType(str, Enum):
+    NON_PROFESSIONAL = "non_professional"  # Rodzina zastępcza niezawodowa / spokrewniona
+    PROFESSIONAL = "professional"  # Rodzina zastępcza zawodowa (wyłączona z art. 183 § 1 KP)
 
 
 class PaymentVariant(str, Enum):
     STANDARD_100_70 = "100_70"  # 100% macierzyński + 70% rodzicielski
     COMBINED_81_5 = "81_5"  # 81,5% za całość (wniosek w ciągu 21 dni po porodzie)
+
+
+class IndividualBaseCalculationRequest(BaseModel):
+    insurance_title: InsuranceTitle = InsuranceTitle.UOP
+    mode: str = Field(
+        "uop_12m",
+        description="Tryb wyliczenia: 'uop_12m' (średnia z mies. + premie), 'previous_benefit' (art. 43), 'jdg_art48a' (art. 48/48a dla JDG)",
+    )
+    monthly_gross_salaries: list[float] = Field(
+        default_factory=list,
+        description="Wynagrodzenia miesięczne brutto z poszczególnych pełnych miesięcy (do 12 mies.)",
+    )
+    quarterly_bonuses_total: float = Field(
+        0.0, ge=0, description="Suma premii kwartalnych z 4 poprzednich kwartałów (wliczana w 1/12 — art. 42 ust. 2)"
+    )
+    annual_bonus_total: float = Field(
+        0.0, ge=0, description="Nagroda roczna / 13. pensja za rok poprzedni (wliczana w 1/12 — art. 42 ust. 3)"
+    )
+    uncompleted_months_excluded: int = Field(
+        0, ge=0, le=11, description="Liczba miesięcy wyłączonych (<1/2 przepracowanego czasu — art. 38 ust. 2 pkt 1)"
+    )
+    fte_fraction: float = Field(1.0, gt=0.0, le=1.0, description="Wymiar etatu (dla minimalnej podstawy z art. 45)")
+    previous_benefit_base: Optional[float] = Field(
+        None, ge=0, description="Poprzednia podstawa wymiaru zasiłku przy przerwie < 1 miesiąc (art. 43)"
+    )
+    jdg_insured_months: int = Field(
+        12, ge=1, le=12, description="Liczba pełnych miesięcy ubezpieczenia chorobowego (dla art. 48a)"
+    )
+    jdg_declared_monthly_gross: float = Field(
+        6200.0, ge=0, description="Przeciętna zadeklarowana podstawa wymiaru składek na JDG"
+    )
+    jdg_min_monthly_gross: Optional[float] = Field(
+        None, ge=0, description="Najniższa podstawa wymiaru składek na JDG (np. 5652 zł lub 1441,80 zł)"
+    )
+
+
+class IndividualBaseCalculationResponse(BaseModel):
+    computed_base_monthly: float
+    daily_rate_100_percent: float
+    daily_rate_81_5_percent: float
+    daily_rate_70_percent: float
+    cap_applied: bool = False
+    floor_applied: bool = False
+    legal_basis: str
+    explanation_steps: list[str]
 
 
 class PregnancyBenefitRequest(BaseModel):
@@ -44,6 +94,7 @@ class PregnancyBenefitResponse(BaseModel):
     waiting_period_met: bool
     benefit_rate_percent: float
     benefit_base_monthly: float
+    benefit_base_explanation: Optional[str] = None
     daily_benefit_gross: float
     monthly_benefit_gross: float
     max_benefit_days: int
@@ -59,7 +110,11 @@ class IntegratedCalculatorRequest(BaseModel):
     has_sickness_insurance_on_birth_date: bool = True
     children_count: int = Field(1, ge=1, le=6)
     child_age_years: Optional[float] = Field(None, ge=0, le=18)
+    foster_family_type: FosterFamilyType = FosterFamilyType.NON_PROFESSIONAL
     foster_deferred_school: bool = False
+    adoption_short_period_9_weeks: bool = False
+    previously_used_foster_maternity_weeks: int = Field(0, ge=0, le=37)
+    previously_used_foster_parental_weeks: int = Field(0, ge=0, le=67)
     has_za_zyciem_certificate: bool = False
 
     # Wcześniak / hospitalizacja -> uzupełniający urlop macierzyński
@@ -68,9 +123,10 @@ class IntegratedCalculatorRequest(BaseModel):
     birth_weight_grams: Optional[int] = Field(None, ge=300, le=6000)
     hospitalization_weeks: int = Field(0, ge=0, le=20)
 
-    # Podstawa wymiaru
+    # Podstawa wymiaru (standardowa lub indywidualna - pkt f)
     gross_monthly_salary: float = Field(7000.0, ge=0)
     custom_benefit_base: Optional[float] = Field(None, ge=0)
+    individual_base_config: Optional[IndividualBaseCalculationRequest] = None
     second_parent_gross_salary: Optional[float] = Field(None, ge=0)
     second_parent_custom_base: Optional[float] = Field(None, ge=0)
 
@@ -104,6 +160,8 @@ class IntegratedCalculatorResponse(BaseModel):
     ineligibility_reason: Optional[str] = None
     benefit_base_parent1: float
     benefit_base_parent2: float
+    benefit_base_explanation: Optional[str] = None
+    benefit_base_parent2_explanation: Optional[str] = None
     total_weeks: float
     maternity_weeks: int
     supplementary_maternity_weeks: int
@@ -115,3 +173,4 @@ class IntegratedCalculatorResponse(BaseModel):
     total_estimated_gross_pln: float
     warnings: list[str]
     required_documents: list[str]
+

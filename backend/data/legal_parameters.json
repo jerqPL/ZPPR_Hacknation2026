@@ -39,5 +39,11 @@
   "payer_employee_threshold": 20,
   "foster_max_child_age": 7,
   "foster_deferred_school_max_child_age": 10,
-  "adoption_max_child_age": 14
+  "adoption_max_child_age": 14,
+  "adoption_foster_min_maternity_weeks": 9,
+  "adoption_foster_reduced_parental_weeks": 38,
+  "adoption_foster_reduced_parental_weeks_za_zyciem": 62,
+  "voluntary_sickness_max_monthly_gross": 23550.0,
+  "jdg_preferential_min_base_gross": 1441.8,
+  "jdg_standard_min_base_gross": 5652.0
 }

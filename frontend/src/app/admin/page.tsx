@@ -166,6 +166,50 @@ export default function AdminPanelPage() {
                 className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
               />
             </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                Limit wieku dziecka — adopcja / rodz. zastępcza (lata)
+              </label>
+              <div className="mt-1 grid grid-cols-2 gap-2">
+                <input
+                  type="number"
+                  title="Limit wieku adopcja"
+                  value={params.adoption_max_child_age}
+                  onChange={(e) => updateNum("adoption_max_child_age", e.target.value)}
+                  className="w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
+                />
+                <input
+                  type="number"
+                  title="Limit wieku rodzina zastępcza"
+                  value={params.foster_max_child_age}
+                  onChange={(e) => updateNum("foster_max_child_age", e.target.value)}
+                  className="w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                Min. urlop na warunkach macierzyńskiego — art. 183 § 3 KP (tyg.)
+              </label>
+              <input
+                type="number"
+                value={params.adoption_foster_min_maternity_weeks ?? 9}
+                onChange={(e) => updateNum("adoption_foster_min_maternity_weeks", e.target.value)}
+                className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                Maks. podstawa dobrowolnego chorobowego 250% (zł brutto)
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                value={params.voluntary_sickness_max_monthly_gross ?? 23550}
+                onChange={(e) => updateNum("voluntary_sickness_max_monthly_gross", e.target.value)}
+                className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
+              />
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-3 pt-2">

@@ -2,6 +2,8 @@ import type {
   DebtStatusResponse,
   DocumentGuidanceResponse,
   EzlaCertificate,
+  IndividualBaseCalculationRequest,
+  IndividualBaseCalculationResponse,
   InsuranceTitle,
   IntegratedCalculatorResponse,
   LegalParameters,
@@ -55,6 +57,11 @@ export const api = {
     }),
   calculateIntegrated: (payload: Record<string, unknown>) =>
     apiFetch<IntegratedCalculatorResponse>("/calculator/integrated", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  calculateIndividualBase: (payload: IndividualBaseCalculationRequest) =>
+    apiFetch<IndividualBaseCalculationResponse>("/calculator/benefit-base", {
       method: "POST",
       body: JSON.stringify(payload),
     }),

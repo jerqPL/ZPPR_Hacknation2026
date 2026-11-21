@@ -15,6 +15,7 @@ export default function PregnancyPage() {
   const [hasVoluntary, setHasVoluntary] = useState(user ? user.has_sickness_insurance : true);
   const [insuranceDays, setInsuranceDays] = useState(user?.insurance_days ?? 180);
   const [grossSalary, setGrossSalary] = useState(user?.declared_gross_salary ?? 6500);
+  const [customBase, setCustomBase] = useState<string>("");
   const [hasCodeB, setHasCodeB] = useState(true);
   const [employerCount, setEmployerCount] = useState(user?.employer_insured_count ?? 25);
   const [specialTermination, setSpecialTermination] = useState(false);
@@ -34,6 +35,8 @@ export default function PregnancyPage() {
         has_voluntary_sickness_insurance: hasVoluntary,
         insurance_days: Number(insuranceDays),
         gross_monthly_salary: Number(grossSalary),
+        custom_benefit_base:
+          customBase.trim() !== "" && Number(customBase) > 0 ? Number(customBase) : null,
         has_code_b: hasCodeB,
         employer_insured_count: Number(employerCount),
         employment_terminated_special: specialTermination,
@@ -116,6 +119,21 @@ export default function PregnancyPage() {
                 className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
               />
             </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+              Indywidualna podstawa wymiaru zasiłku (opcjonalnie, zł po odliczeniu 13,71% — pkt f)
+            </label>
+            <input
+              type="number"
+              min={0}
+              step={0.01}
+              placeholder="Pozostaw puste, aby wyliczyć automatycznie z kwoty brutto"
+              value={customBase}
+              onChange={(e) => setCustomBase(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
+            />
           </div>
 
           <div>
@@ -221,6 +239,12 @@ export default function PregnancyPage() {
                   </p>
                 </div>
               </div>
+
+              {result.benefit_base_explanation && (
+                <p className="mt-3 rounded bg-slate-50 dark:bg-[#16241d] p-2.5 text-xs text-slate-600 dark:text-slate-300">
+                  <strong>Ustalenie podstawy wymiaru:</strong> {result.benefit_base_explanation}
+                </p>
+              )}
 
               <dl className="mt-5 grid gap-2 text-xs text-slate-700 dark:text-slate-300 sm:grid-cols-2">
                 <div className="rounded border border-slate-100 dark:border-slate-800 p-2.5">

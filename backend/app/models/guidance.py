@@ -47,14 +47,25 @@ class SampleCase(BaseModel):
     case_id: str
     title: str
     description: str
+    scenario: str = "birth"  # "birth" | "adoption" | "foster"
     insurance_title: str
     insured_on_event_date: bool
     expected_decision: str
     gross_monthly_salary: float
+    custom_benefit_base: Optional[float] = None
+    benefit_base_details: Optional[str] = None
+    second_parent_gross_salary: Optional[float] = None
+    second_parent_custom_base: Optional[float] = None
     children_count: int = 1
+    child_age_years: Optional[float] = None
+    foster_family_type: str = "non_professional"
+    foster_deferred_school: bool = False
     payment_variant: str = "81_5"
     has_za_zyciem: bool = False
     employer_insured_count: int = 25
+    mother_maternity_weeks: Optional[int] = None
+    father_takes_parental_weeks: int = 9
+    father_takes_paternity_leave: bool = False
     notes: str
 
 
@@ -65,4 +76,6 @@ class PdfAnalysisResult(BaseModel):
     insurance_verified: bool
     suggested_insurance_title: str
     suggested_gross_salary: Optional[float] = None
+    suggested_custom_benefit_base: Optional[float] = None
     notes: list[str]
+

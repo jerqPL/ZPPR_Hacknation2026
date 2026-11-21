@@ -47,3 +47,10 @@ class LegalParameters(BaseModel):
     foster_max_child_age: int = Field(7, ge=1)
     foster_deferred_school_max_child_age: int = Field(10, ge=1)
     adoption_max_child_age: int = Field(14, ge=1)
+    adoption_foster_min_maternity_weeks: int = Field(9, ge=1)
+    adoption_foster_reduced_parental_weeks: int = Field(38, ge=1)
+    adoption_foster_reduced_parental_weeks_za_zyciem: int = Field(62, ge=1)
+    voluntary_sickness_max_monthly_gross: float = Field(23550.0, gt=0)
+    jdg_preferential_min_base_gross: float = Field(1441.8, gt=0)
+    jdg_standard_min_base_gross: float = Field(5652.0, gt=0)
+
