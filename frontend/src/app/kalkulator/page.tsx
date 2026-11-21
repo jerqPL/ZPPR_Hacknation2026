@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { PageHeader } from "@/components/PageHeader";
+import { InfoTooltip } from "@/components/InfoTooltip";
 import { useUser } from "@/components/UserContext";
 import { api } from "@/lib/api";
 import type {
@@ -86,18 +87,21 @@ export default function IntegratedCalculatorPage() {
       <PageHeader
         badge="Moduł 2 • Zintegrowany Kalkulator"
         title="Zintegrowany Kalkulator Zasiłku Macierzyńskiego i Rodzicielskiego"
-        description="Jedno narzędzie łączące wszystkie warianty: poród, podział opieki między oboje rodziców, łączenie urlopu rodzicielskiego z pracą, adopcję i rodzinę zastępczą, wcześniaki oraz zaświadczenie „Za życiem”."
+        description="Jedno narzędzie łączące wszystkie warianty: poród, podział opieki między oboje rodziców, łączenie urlopu rodzicielskiego z pracą, adopcję i rodzinę zastępczą, wcześniaki oraz zaświadczenie „Za życiem”. Najedź kursorem na dowolną nazwę rubryki, aby zobaczyć podpowiedź."
       />
 
       <div className="grid gap-8 lg:grid-cols-12">
         <form
           onSubmit={handleSubmit}
-          className="space-y-5 rounded-xl border border-slate-200 dark:border-emerald-950 bg-white dark:bg-[#111c17] p-6 shadow-xs lg:col-span-5"
+          className="space-y-5 rounded-xl border border-slate-200 bg-white p-6 shadow-xs dark:border-emerald-950 dark:bg-[#111c17] lg:col-span-5"
         >
           {/* Scenariusz */}
           <div>
             <label className="block text-xs font-bold uppercase tracking-wide text-slate-600 dark:text-slate-400">
-              1. Scenariusz rodzicielstwa
+              <InfoTooltip
+                label="1. Scenariusz rodzicielstwa"
+                tooltip="Wybierz, czy zasiłek dotyczy urodzenia dziecka, przysposobienia (adopcji) czy przyjęcia dziecka na wychowanie jako rodzina zastępcza niezawodowa."
+              />
             </label>
             <div className="mt-2 grid grid-cols-3 gap-2">
               {(
@@ -113,8 +117,8 @@ export default function IntegratedCalculatorPage() {
                   onClick={() => setScenario(opt.id)}
                   className={`rounded-lg border px-2 py-2 text-xs font-semibold transition ${
                     scenario === opt.id
-                      ? "border-[#007834] bg-[#e6f4ec] dark:bg-[#007834]/20 text-[#005a27] dark:text-emerald-300"
-                      : "border-slate-200 dark:border-emerald-950 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#16241d] dark:bg-[#16241d]"
+                      ? "border-[#007834] bg-[#e6f4ec] text-[#005a27] dark:bg-[#007834]/20 dark:text-emerald-300"
+                      : "border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-emerald-950 dark:text-slate-400 dark:hover:bg-[#16241d]"
                   }`}
                 >
                   {opt.label}
@@ -127,12 +131,15 @@ export default function IntegratedCalculatorPage() {
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
-                Tytuł ubezpieczenia
+                <InfoTooltip
+                  label="Tytuł ubezpieczenia"
+                  tooltip="Forma zatrudnienia decyduje o tym, czy ubezpieczenie chorobowe jest obowiązkowe (umowa o pracę), czy dobrowolne (zlecenie, JDG), oraz jakie formularze trzeba złożyć."
+                />
               </label>
               <select
                 value={insuranceTitle}
                 onChange={(e) => setInsuranceTitle(e.target.value as InsuranceTitle)}
-                className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700"
               >
                 <option value="uop">Umowa o pracę</option>
                 <option value="zlecenie">Umowa zlecenie</option>
@@ -142,7 +149,10 @@ export default function IntegratedCalculatorPage() {
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
-                Liczba dzieci (1 poród/przyjęcie)
+                <InfoTooltip
+                  label="Liczba dzieci (1 poród/przyjęcie)"
+                  tooltip="Im więcej dzieci urodzonych przy jednym porodzie (lub przyjętych jednocześnie), tym dłuższy urlop macierzyński (od 20 do 37 tygodni) i rodzicielski (41 lub 43 tygodnie)."
+                />
               </label>
               <input
                 type="number"
@@ -150,7 +160,7 @@ export default function IntegratedCalculatorPage() {
                 max={6}
                 value={childrenCount}
                 onChange={(e) => setChildrenCount(Number(e.target.value))}
-                className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700"
               />
             </div>
           </div>
@@ -162,14 +172,20 @@ export default function IntegratedCalculatorPage() {
               onChange={(e) => setInsuredOnDate(e.target.checked)}
               className="h-4 w-4 accent-[#007834]"
             />
-            Podleganie ubezpieczeniu chorobowemu na dzień porodu / przyjęcia dziecka
+            <InfoTooltip
+              label="Podleganie ubezpieczeniu chorobowemu na dzień porodu / przyjęcia dziecka"
+              tooltip="Warunek konieczny do uzyskania zasiłku macierzyńskiego. Przy umowie o pracę jest automatyczny; na zleceniu i JDG musisz być zgłoszony/a do dobrowolnego ubezpieczenia chorobowego."
+            />
           </label>
 
           {scenario !== "birth" && (
-            <div className="grid gap-3 rounded-lg bg-slate-50 dark:bg-[#16241d] p-3 sm:grid-cols-2">
+            <div className="grid gap-3 rounded-lg bg-slate-50 p-3 dark:bg-[#16241d] sm:grid-cols-2">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
-                  Wiek dziecka (lata)
+                  <InfoTooltip
+                    label="Wiek dziecka (lata)"
+                    tooltip="Urlop na warunkach macierzyńskiego przysługuje do 7. roku życia (rodzina zastępcza), 10. roku życia (przy odroczeniu szkoły) lub 14. roku życia (adopcja)."
+                  />
                 </label>
                 <input
                   type="number"
@@ -178,7 +194,7 @@ export default function IntegratedCalculatorPage() {
                   step={0.5}
                   value={childAgeYears}
                   onChange={(e) => setChildAgeYears(Number(e.target.value))}
-                  className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#111c17] px-3 py-1.5 text-sm"
+                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm dark:border-slate-700 dark:bg-[#111c17]"
                 />
               </div>
               {scenario === "foster" && (
@@ -189,7 +205,10 @@ export default function IntegratedCalculatorPage() {
                     onChange={(e) => setFosterDeferred(e.target.checked)}
                     className="h-4 w-4 accent-[#007834]"
                   />
-                  Odroczenie obowiązku szkolnego (do 10 lat)
+                  <InfoTooltip
+                    label="Odroczenie obowiązku szkolnego (do 10 lat)"
+                    tooltip="Jeśli wobec dziecka podjęto decyzję o odroczeniu obowiązku szkolnego, limit wieku dla rodziny zastępczej wzrasta z 7 do 10 lat."
+                  />
                 </label>
               )}
             </div>
@@ -199,7 +218,10 @@ export default function IntegratedCalculatorPage() {
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
-                Brutto rodzica 1 (zł)
+                <InfoTooltip
+                  label="Brutto rodzica 1 (zł)"
+                  tooltip="Przeciętne miesięczne wynagrodzenie brutto z ostatnich 12 miesięcy przed porodem. ZUS pomniejsza je o 13,71% (składki pracownika), aby ustalić podstawę wymiaru zasiłku."
+                />
               </label>
               <input
                 type="number"
@@ -207,12 +229,15 @@ export default function IntegratedCalculatorPage() {
                 step={100}
                 value={grossSalary}
                 onChange={(e) => setGrossSalary(Number(e.target.value))}
-                className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700"
               />
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
-                Brutto rodzica 2 (zł)
+                <InfoTooltip
+                  label="Brutto rodzica 2 (zł)"
+                  tooltip="Średnie wynagrodzenie brutto drugiego rodzica (np. ojca) — służy do wyliczenia jego zasiłku za przejęty macierzyński, 9 tygodni rodzicielskiego oraz urlop ojcowski."
+                />
               </label>
               <input
                 type="number"
@@ -220,18 +245,23 @@ export default function IntegratedCalculatorPage() {
                 step={100}
                 value={secondParentGross}
                 onChange={(e) => setSecondParentGross(Number(e.target.value))}
-                className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700"
               />
             </div>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">Wariant wypłaty</label>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                <InfoTooltip
+                  label="Wariant wypłaty"
+                  tooltip="81,5% przez cały okres wymaga złożenia jednego wniosku w ciągu 21 dni od porodu. Wariant 100% + 70% oznacza 100% na macierzyńskim i 70% na rodzicielskim."
+                />
+              </label>
               <select
                 value={paymentVariant}
                 onChange={(e) => setPaymentVariant(e.target.value as PaymentVariant)}
-                className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700"
               >
                 <option value="81_5">81,5% (wniosek w 21 dni)</option>
                 <option value="100_70">100% macierzyński + 70% rodzicielski</option>
@@ -239,26 +269,37 @@ export default function IntegratedCalculatorPage() {
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
-                Ubezpieczeni u płatnika
+                <InfoTooltip
+                  label="Ubezpieczeni u płatnika"
+                  tooltip="Liczba osób zgłoszonych do ubezpieczenia chorobowego przez Twojego pracodawcę na dzień 30 listopada poprzedniego roku. Powyżej 20 osób zasiłek wypłaca pracodawca, do 20 osób — ZUS."
+                />
               </label>
               <input
                 type="number"
                 min={0}
                 value={employerCount}
                 onChange={(e) => setEmployerCount(Number(e.target.value))}
-                className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700"
               />
             </div>
           </div>
 
           {/* Podział między rodziców */}
-          <div className="space-y-2 rounded-lg border border-slate-200 dark:border-emerald-950 p-3">
-            <p className="text-xs font-bold text-slate-700 dark:text-slate-300">2. Podział opieki między rodziców</p>
+          <div className="space-y-2 rounded-lg border border-slate-200 p-3 dark:border-emerald-950">
+            <p className="text-xs font-bold text-slate-700 dark:text-slate-300">
+              <InfoTooltip
+                label="2. Podział opieki między rodziców"
+                tooltip="Urlopem macierzyńskim (po pierwszych 14 tygodniach) i rodzicielskim możecie się podzielić, a część urlopu wykorzystywać jednocześnie lub naprzemiennie."
+              />
+            </p>
             <div className="grid gap-3 sm:grid-cols-2">
               {scenario === "birth" && (
                 <div>
                   <label className="block text-[11px] text-slate-600 dark:text-slate-400">
-                    Macierzyński matki (min. 14 tyg.)
+                    <InfoTooltip
+                      label="Macierzyński matki (min. 14 tyg.)"
+                      tooltip="Pierwsze 14 tygodni po porodzie matka musi wykorzystać osobiście. Pozostałą część (np. 6 tygodni przy 1 dziecku) może przejąć ojciec dziecka."
+                    />
                   </label>
                   <input
                     type="number"
@@ -266,13 +307,16 @@ export default function IntegratedCalculatorPage() {
                     max={37}
                     value={motherMaternityWeeks}
                     onChange={(e) => setMotherMaternityWeeks(Number(e.target.value))}
-                    className="mt-1 w-full rounded border border-slate-300 dark:border-slate-700 px-2.5 py-1.5 text-sm"
+                    className="mt-1 w-full rounded border border-slate-300 px-2.5 py-1.5 text-sm dark:border-slate-700"
                   />
                 </div>
               )}
               <div>
                 <label className="block text-[11px] text-slate-600 dark:text-slate-400">
-                  Rodzicielski dla 2. rodzica (tyg., min. 9)
+                  <InfoTooltip
+                    label="Rodzicielski dla 2. rodzica (tyg.)"
+                    tooltip="Każdemu z rodziców przysługuje 9 tygodni wyłącznego, nieprzenoszalnego urlopu rodzicielskiego (płatne 70%). Jeśli drugi rodzic ich nie wykorzysta, przepadają."
+                  />
                 </label>
                 <input
                   type="number"
@@ -280,7 +324,7 @@ export default function IntegratedCalculatorPage() {
                   max={67}
                   value={fatherParentalWeeks}
                   onChange={(e) => setFatherParentalWeeks(Number(e.target.value))}
-                  className="mt-1 w-full rounded border border-slate-300 dark:border-slate-700 px-2.5 py-1.5 text-sm"
+                  className="mt-1 w-full rounded border border-slate-300 px-2.5 py-1.5 text-sm dark:border-slate-700"
                 />
               </div>
             </div>
@@ -291,12 +335,15 @@ export default function IntegratedCalculatorPage() {
                 onChange={(e) => setFatherPaternity(e.target.checked)}
                 className="h-4 w-4 accent-[#007834]"
               />
-              Uwzględnij urlop ojcowski (2 tygodnie, 100%)
+              <InfoTooltip
+                label="Uwzględnij urlop ojcowski (2 tygodnie, 100%)"
+                tooltip="Wyłączne prawo ojca (14 dni kalendarzowych jednorazowo lub w 2 częściach po 7 dni), do wykorzystania przed ukończeniem przez dziecko 12 miesięcy."
+              />
             </label>
           </div>
 
           {/* Opcje zaawansowane */}
-          <div className="space-y-2 rounded-lg border border-slate-200 dark:border-emerald-950 p-3">
+          <div className="space-y-2 rounded-lg border border-slate-200 p-3 dark:border-emerald-950">
             <p className="text-xs font-bold text-slate-700 dark:text-slate-300">3. Opcje dodatkowe</p>
             <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300">
               <input
@@ -305,7 +352,10 @@ export default function IntegratedCalculatorPage() {
                 onChange={(e) => setHasZaZyciem(e.target.checked)}
                 className="h-4 w-4 accent-[#007834]"
               />
-              Zaświadczenie „Za życiem” (wydłużony urlop rodzicielski 65/67 tyg.)
+              <InfoTooltip
+                label="Zaświadczenie „Za życiem” (65/67 tyg.)"
+                tooltip="Wydawane przez lekarza specjalistę przy ciężkim i nieodwracalnym upośledzeniu lub nieuleczalnej chorobie zagrażającej życiu. Wydłuża urlop rodzicielski o 24 tygodnie."
+              />
             </label>
 
             <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300">
@@ -315,41 +365,59 @@ export default function IntegratedCalculatorPage() {
                 onChange={(e) => setPremature(e.target.checked)}
                 className="h-4 w-4 accent-[#007834]"
               />
-              Wcześniak / hospitalizacja (uzupełniający urlop macierzyński)
+              <InfoTooltip
+                label="Wcześniak / hospitalizacja (uzupełniający urlop)"
+                tooltip="Dodatkowy urlop macierzyński (płatny 100%) udzielany jednorazowo po macierzyńskim: 1 tydzień za każdy tydzień pobytu dziecka w szpitalu (do 8 lub 15 tygodni)."
+              />
             </label>
             {premature && (
               <div className="grid grid-cols-3 gap-2 pt-1">
                 <div>
-                  <label className="block text-[10px] text-slate-500 dark:text-slate-400">Tydzień ciąży</label>
+                  <label className="block text-[10px] text-slate-500 dark:text-slate-400">
+                    <InfoTooltip
+                      label="Tydzień ciąży"
+                      tooltip="Urodzenie przed 28. tygodniem ciąży daje wyższy limit uzupełniającego urlopu (do 15 tygodni zamiast 8)."
+                    />
+                  </label>
                   <input
                     type="number"
                     min={20}
                     max={42}
                     value={gestationWeek}
                     onChange={(e) => setGestationWeek(Number(e.target.value))}
-                    className="w-full rounded border border-slate-300 dark:border-slate-700 px-2 py-1 text-xs"
+                    className="w-full rounded border border-slate-300 px-2 py-1 text-xs dark:border-slate-700"
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] text-slate-500 dark:text-slate-400">Masa (g)</label>
+                  <label className="block text-[10px] text-slate-500 dark:text-slate-400">
+                    <InfoTooltip
+                      label="Masa (g)"
+                      tooltip="Masa urodzeniowa ≤ 1000 g również uprawnia do wyższego limitu uzupełniającego urlopu (maks. 15 tygodni)."
+                    />
+                  </label>
                   <input
                     type="number"
                     min={300}
                     max={6000}
                     value={birthWeight}
                     onChange={(e) => setBirthWeight(Number(e.target.value))}
-                    className="w-full rounded border border-slate-300 dark:border-slate-700 px-2 py-1 text-xs"
+                    className="w-full rounded border border-slate-300 px-2 py-1 text-xs dark:border-slate-700"
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] text-slate-500 dark:text-slate-400">Szpital (tyg.)</label>
+                  <label className="block text-[10px] text-slate-500 dark:text-slate-400">
+                    <InfoTooltip
+                      label="Szpital (tyg.)"
+                      tooltip="Łączna liczba tygodni pobytu dziecka w szpitalu po porodzie (niepełny tydzień zaokrągla się w górę)."
+                    />
+                  </label>
                   <input
                     type="number"
                     min={0}
                     max={20}
                     value={hospWeeks}
                     onChange={(e) => setHospWeeks(Number(e.target.value))}
-                    className="w-full rounded border border-slate-300 dark:border-slate-700 px-2 py-1 text-xs"
+                    className="w-full rounded border border-slate-300 px-2 py-1 text-xs dark:border-slate-700"
                   />
                 </div>
               </div>
@@ -362,12 +430,20 @@ export default function IntegratedCalculatorPage() {
                 onChange={(e) => setCombineWork(e.target.checked)}
                 className="h-4 w-4 accent-[#007834]"
               />
-              Łączenie urlopu rodzicielskiego z pracą (maks. 1/2 etatu)
+              <InfoTooltip
+                label="Łączenie urlopu rodzicielskiego z pracą (maks. 1/2 etatu)"
+                tooltip="Pracownik na umowie o pracę może pracować u swojego pracodawcy maks. na pół etatu podczas urlopu rodzicielskiego — urlop ulega wtedy proporcjonalnemu wydłużeniu."
+              />
             </label>
             {combineWork && (
               <div className="grid grid-cols-2 gap-2 pt-1">
                 <div>
-                  <label className="block text-[10px] text-slate-500 dark:text-slate-400">Wymiar etatu (0.1–0.5)</label>
+                  <label className="block text-[10px] text-slate-500 dark:text-slate-400">
+                    <InfoTooltip
+                      label="Wymiar etatu (0.1–0.5)"
+                      tooltip="Część pełnego etatu, na jaką wracasz do pracy podczas urlopu rodzicielskiego (np. 0.5 = pół etatu)."
+                    />
+                  </label>
                   <input
                     type="number"
                     min={0.1}
@@ -375,18 +451,23 @@ export default function IntegratedCalculatorPage() {
                     step={0.1}
                     value={workFte}
                     onChange={(e) => setWorkFte(Number(e.target.value))}
-                    className="w-full rounded border border-slate-300 dark:border-slate-700 px-2 py-1 text-xs"
+                    className="w-full rounded border border-slate-300 px-2 py-1 text-xs dark:border-slate-700"
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] text-slate-500 dark:text-slate-400">Liczba tyg. pracy</label>
+                  <label className="block text-[10px] text-slate-500 dark:text-slate-400">
+                    <InfoTooltip
+                      label="Liczba tyg. pracy"
+                      tooltip="Przez ile tygodni urlopu rodzicielskiego planujesz łączyć opiekę nad dzieckiem z pracą na część etatu."
+                    />
+                  </label>
                   <input
                     type="number"
                     min={1}
                     max={41}
                     value={workWeeks}
                     onChange={(e) => setWorkWeeks(Number(e.target.value))}
-                    className="w-full rounded border border-slate-300 dark:border-slate-700 px-2 py-1 text-xs"
+                    className="w-full rounded border border-slate-300 px-2 py-1 text-xs dark:border-slate-700"
                   />
                 </div>
               </div>
@@ -407,29 +488,35 @@ export default function IntegratedCalculatorPage() {
         {/* Wyniki */}
         <div className="space-y-5 lg:col-span-7">
           {result ? (
-            <div className="rounded-xl border border-slate-200 dark:border-emerald-950 bg-white dark:bg-[#111c17] p-6 shadow-xs">
+            <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-xs dark:border-emerald-950 dark:bg-[#111c17]">
               {!result.eligible ? (
-                <div className="rounded-lg border border-red-200 bg-red-50 dark:border-red-800/60 dark:bg-red-950/40 p-4 text-sm text-red-800 dark:text-red-200">
+                <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:border-red-800/60 dark:bg-red-950/40 dark:text-red-200">
                   <p className="font-bold">Brak uprawnień do zasiłku macierzyńskiego</p>
                   <p className="mt-1">{result.ineligibility_reason}</p>
                 </div>
               ) : (
                 <>
                   <div className="grid gap-4 sm:grid-cols-3">
-                    <div className="rounded-lg bg-[#e6f4ec] dark:bg-[#007834]/20 p-4">
-                      <p className="text-xs text-[#005a27] dark:text-emerald-300">Łączny czas urlopów</p>
+                    <div className="rounded-lg bg-[#e6f4ec] p-4 dark:bg-[#007834]/20">
+                      <p className="text-xs text-[#005a27] dark:text-emerald-300">
+                        Łączny czas urlopów
+                      </p>
                       <p className="mt-1 text-2xl font-bold text-[#005a27] dark:text-emerald-300">
                         {result.total_weeks} tyg.
                       </p>
                     </div>
-                    <div className="rounded-lg bg-slate-50 dark:bg-[#16241d] p-4">
-                      <p className="text-xs text-slate-500 dark:text-slate-400">Szacowana suma brutto</p>
+                    <div className="rounded-lg bg-slate-50 p-4 dark:bg-[#16241d]">
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        Szacowana suma brutto
+                      </p>
                       <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-slate-100">
                         {result.total_estimated_gross_pln.toLocaleString("pl-PL")} zł
                       </p>
                     </div>
-                    <div className="rounded-lg bg-slate-50 dark:bg-[#16241d] p-4">
-                      <p className="text-xs text-slate-500 dark:text-slate-400">Podstawa rodzica 1</p>
+                    <div className="rounded-lg bg-slate-50 p-4 dark:bg-[#16241d]">
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        Podstawa rodzica 1
+                      </p>
                       <p className="mt-1 text-xl font-bold text-slate-900 dark:text-slate-100">
                         {result.benefit_base_parent1.toFixed(2)} zł
                       </p>
@@ -444,7 +531,7 @@ export default function IntegratedCalculatorPage() {
                   <div className="mt-5 overflow-x-auto">
                     <table className="w-full border-collapse text-left text-xs">
                       <thead>
-                        <tr className="border-b border-slate-200 dark:border-emerald-950 bg-slate-50 dark:bg-[#16241d] text-slate-600 dark:text-slate-400">
+                        <tr className="border-b border-slate-200 bg-slate-50 text-slate-600 dark:border-emerald-950 dark:bg-[#16241d] dark:text-slate-400">
                           <th className="p-2.5">Rodzaj urlopu / zasiłku</th>
                           <th className="p-2.5">Rodzic</th>
                           <th className="p-2.5 text-right">Tyg.</th>
@@ -455,7 +542,10 @@ export default function IntegratedCalculatorPage() {
                       </thead>
                       <tbody>
                         {result.breakdown.map((row, idx) => (
-                          <tr key={idx} className="border-b border-slate-100 dark:border-slate-800">
+                          <tr
+                            key={idx}
+                            className="border-b border-slate-100 dark:border-slate-800"
+                          >
                             <td className="p-2.5 font-medium text-slate-900 dark:text-slate-100">
                               {row.label}
                               {row.notes && (
@@ -464,7 +554,9 @@ export default function IntegratedCalculatorPage() {
                                 </p>
                               )}
                             </td>
-                            <td className="p-2.5 text-slate-700 dark:text-slate-300">{row.parent}</td>
+                            <td className="p-2.5 text-slate-700 dark:text-slate-300">
+                              {row.parent}
+                            </td>
                             <td className="p-2.5 text-right font-semibold">{row.weeks}</td>
                             <td className="p-2.5 text-right">{row.rate_percent}%</td>
                             <td className="p-2.5 text-right">
@@ -480,8 +572,10 @@ export default function IntegratedCalculatorPage() {
                   </div>
 
                   {result.required_documents.length > 0 && (
-                    <div className="mt-5 rounded-lg bg-slate-50 dark:bg-[#16241d] p-4">
-                      <p className="text-xs font-bold text-slate-800 dark:text-slate-200">Wymagane dokumenty</p>
+                    <div className="mt-5 rounded-lg bg-slate-50 p-4 dark:bg-[#16241d]">
+                      <p className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                        Wymagane dokumenty
+                      </p>
                       <ul className="mt-1 list-disc space-y-1 pl-4 text-xs text-slate-700 dark:text-slate-300">
                         {result.required_documents.map((doc, i) => (
                           <li key={i}>{doc}</li>
@@ -493,8 +587,10 @@ export default function IntegratedCalculatorPage() {
               )}
 
               {result.warnings.length > 0 && (
-                <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800/60 dark:bg-amber-950/40 p-4">
-                  <p className="text-xs font-bold text-amber-900 dark:text-amber-200">Uwagi i zasady prawne</p>
+                <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-800/60 dark:bg-amber-950/40">
+                  <p className="text-xs font-bold text-amber-900 dark:text-amber-200">
+                    Uwagi i zasady prawne
+                  </p>
                   <ul className="mt-1 list-disc space-y-1 pl-4 text-xs text-amber-900 dark:text-amber-200">
                     {result.warnings.map((w, i) => (
                       <li key={i}>{w}</li>
@@ -504,7 +600,7 @@ export default function IntegratedCalculatorPage() {
               )}
             </div>
           ) : (
-            <div className="rounded-xl border border-dashed border-slate-300 dark:border-slate-700 bg-white dark:bg-[#111c17] p-10 text-center text-sm text-slate-500 dark:text-slate-400">
+            <div className="rounded-xl border border-dashed border-slate-300 bg-white p-10 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-[#111c17] dark:text-slate-400">
               Skonfiguruj parametry po lewej stronie i kliknij „Oblicz wymiary i wysokość zasiłku”,
               aby wygenerować symulację dla obojga rodziców.
             </div>
