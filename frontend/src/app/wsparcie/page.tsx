@@ -29,8 +29,10 @@ export default function SupportPage() {
           <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Urodzenie martwego dziecka</h2>
           <p className="mt-2 text-xs leading-relaxed text-slate-600 dark:text-slate-400">
             Przysługuje zasiłek macierzyński za okres urlopu macierzyńskiego w wymiarze{" "}
-            <strong>8 tygodni</strong> po porodzie (nie krócej niż 7 dni od dnia zgonu). Podstawą
-            jest akt urodzenia z adnotacją o martwym urodzeniu lub zaświadczenie lekarskie.
+            <strong>8 tygodni</strong> po porodzie (nie krócej niż 7 dni od dnia zgonu) oraz{" "}
+            <strong>zasiłek pogrzebowy 7 000 zł</strong> (wniosek Z-12). Podstawą jest akt urodzenia
+            z adnotacją o martwym urodzeniu albo — gdy aktu nie sporządzono — zaświadczenie lekarza
+            ginekologa lub położnej (§ 13 ust. 1 pkt 2 rozporządzenia z 27.09.2026 r.).
           </p>
         </div>
         <div className="rounded-xl border border-slate-200 dark:border-emerald-950 bg-white dark:bg-[#111c17] p-5 shadow-xs">

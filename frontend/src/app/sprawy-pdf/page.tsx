@@ -74,7 +74,7 @@ export default function SampleCasesPdfPage() {
       setPdfResult(res);
       setConfirmTitle(res.suggested_insurance_title);
       setConfirmInsured(res.verification_status === "verified");
-      setConfirmChildren(res.extracted_fields.children_count || 1);
+      setConfirmChildren(Math.min(15, Math.max(1, res.extracted_fields.children_count || 1)));
       setConfirmEmployerCount(res.extracted_fields.employer_insured_count ?? 25);
       setConfirmGross(res.suggested_gross_salary ?? 7000);
       setConfirmCustomBase(
@@ -84,6 +84,7 @@ export default function SampleCasesPdfPage() {
       setError(err instanceof Error ? err.message : "Błąd analizy pliku PDF");
     } finally {
       setUploading(false);
+      e.target.value = "";
     }
   };
 
@@ -94,9 +95,9 @@ export default function SampleCasesPdfPage() {
       scenario: confirmScenario,
       insurance_title: confirmTitle,
       has_sickness_insurance_on_birth_date: confirmInsured,
-      children_count: Number(confirmChildren),
+      children_count: Math.min(15, Math.max(1, Number(confirmChildren) || 1)),
       gross_monthly_salary: Number(confirmGross),
-      custom_benefit_base: confirmCustomBase ? Number(confirmCustomBase) : null,
+      custom_benefit_base: confirmCustomBase.trim() ? Number(confirmCustomBase) : null,
       payment_variant: confirmVariant,
       employer_insured_count: Number(confirmEmployerCount),
       father_takes_parental_weeks: 0,
@@ -257,8 +258,13 @@ export default function SampleCasesPdfPage() {
                     <label className="block text-[11px] font-semibold">Brutto (zł)</label>
                     <input
                       type="number"
+                      min={0}
+                      step="any"
                       value={confirmGross}
-                      onChange={(e) => setConfirmGross(Number(e.target.value))}
+                      onChange={(e) => {
+                        setConfirmGross(Number(e.target.value));
+                        setConfirmCustomBase("");
+                      }}
                       className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1 text-xs dark:border-slate-700"
                     />
                   </div>
@@ -268,6 +274,7 @@ export default function SampleCasesPdfPage() {
                     </label>
                     <input
                       type="number"
+                      min={0}
                       step="any"
                       value={confirmCustomBase}
                       onChange={(e) => setConfirmCustomBase(e.target.value)}
@@ -279,7 +286,7 @@ export default function SampleCasesPdfPage() {
                     <input
                       type="number"
                       min={1}
-                      max={6}
+                      max={15}
                       value={confirmChildren}
                       onChange={(e) => setConfirmChildren(Number(e.target.value))}
                       className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1 text-xs dark:border-slate-700"

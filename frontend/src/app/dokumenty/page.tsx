@@ -9,6 +9,7 @@ import type {
   ApplicationSubmissionResponse,
   DocumentGuidanceResponse,
   InsuranceTitle,
+  LegalParameters,
   PaymentVariant,
 } from "@/lib/types";
 
@@ -35,7 +36,7 @@ const OFFICIAL_FORM_LINKS = [
   },
   {
     code: "USC (gov.pl)",
-    name: "Uzyskaj odpis aktu stanu cywilnego (urodzenia, małżeństwa, zgonu)",
+    name: "Uzyskaj odpis aktu stanu cywilnego (skrócony / zupełny, e-Doręczenia)",
     url: "https://www.gov.pl/web/gov/uzyskaj-odpis-aktu-stanu-cywilnego-urodzenia-malzenstwa-zgonu",
   },
 ];
@@ -43,13 +44,14 @@ const OFFICIAL_FORM_LINKS = [
 export default function DocumentsPage() {
   const { user } = useUser();
 
+  const [legalParams, setLegalParams] = useState<LegalParameters | null>(null);
   const [insuranceTitle, setInsuranceTitle] = useState<InsuranceTitle>(
     user?.insurance_title || "uop"
   );
   const [employerCount, setEmployerCount] = useState(user?.employer_insured_count ?? 25);
   const [guidance, setGuidance] = useState<DocumentGuidanceResponse | null>(null);
 
-  // Kreator formalnych wniosków
+  // Kreator formalnych wniosków (Dz.U. 2025 poz. 322 & Dz.U. 2026 poz. 1316)
   const [appType, setAppType] = useState("leave_employer");
   const [applicantName, setApplicantName] = useState(user?.full_name || "Anna Kowalska");
   const [recipientName, setRecipientName] = useState(
@@ -61,14 +63,30 @@ export default function DocumentsPage() {
   const [leaveParts, setLeaveParts] = useState(1);
   const [paymentVariant, setPaymentVariant] = useState<PaymentVariant>("81_5");
   const [workFte, setWorkFte] = useState(0.5);
+  const [workDuringExtendedPart, setWorkDuringExtendedPart] = useState(true);
+  const [maternityEndDate, setMaternityEndDate] = useState("");
   const [hospFrom, setHospFrom] = useState("");
   const [hospTo, setHospTo] = useState("");
   const [resignationDate, setResignationDate] = useState("");
+  const [uscCopyType, setUscCopyType] = useState<"skrocony" | "zupelny">("skrocony");
   const [notes, setNotes] = useState("");
 
   const [submission, setSubmission] = useState<ApplicationSubmissionResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    api.getParameters().then(setLegalParams).catch(() => setLegalParams(null));
+  }, []);
+
+  // Synchronizacja danych po zalogowaniu lub zmianie persony mObywatel
+  useEffect(() => {
+    if (user) {
+      setApplicantName(user.full_name);
+      setInsuranceTitle(user.insurance_title);
+      setEmployerCount(user.employer_insured_count);
+    }
+  }, [user]);
 
   useEffect(() => {
     api
@@ -87,29 +105,45 @@ export default function DocumentsPage() {
     }
   }, [appType, user]);
 
+  const deadlineDays = legalParams?.combined_application_deadline_days ?? 21;
+  const combinedRateLabel = `${((legalParams?.combined_21_days_rate ?? 0.815) * 100)
+    .toFixed(1)
+    .replace(".", ",")}%`;
+
   const deadline21Preview = useMemo(() => {
     if (!childBirthDate) return null;
     const d = new Date(`${childBirthDate}T00:00:00`);
     if (Number.isNaN(d.getTime())) return null;
-    d.setDate(d.getDate() + 21);
+    d.setDate(d.getDate() + deadlineDays);
     return d.toISOString().slice(0, 10);
-  }, [childBirthDate]);
+  }, [childBirthDate, deadlineDays]);
 
-  const buildPayload = () => ({
+  const buildPayload = (referenceNumber?: string) => ({
     application_type: appType,
     applicant_name: applicantName,
     pesel_masked: user?.pesel_masked || "920514*****",
     child_birth_date: childBirthDate || null,
-    leave_start_date: leaveStartDate || null,
-    leave_end_date: leaveEndDate || null,
+    leave_start_date:
+      appType !== "usc_birth_certificate" && appType !== "leave_resignation"
+        ? leaveStartDate || null
+        : null,
+    leave_end_date:
+      appType !== "usc_birth_certificate" && appType !== "leave_resignation"
+        ? leaveEndDate || null
+        : null,
     leave_parts_count: Number(leaveParts),
     work_fte_fraction: appType === "leave_work_combination" ? Number(workFte) : null,
+    work_during_extended_part:
+      appType === "leave_work_combination" ? workDuringExtendedPart : null,
+    maternity_end_date: appType === "leave_supplementary" ? maternityEndDate || null : null,
     hospitalization_from: appType === "leave_supplementary" ? hospFrom || null : null,
     hospitalization_to: appType === "leave_supplementary" ? hospTo || null : null,
     resignation_date: appType === "leave_resignation" ? resignationDate || null : null,
+    usc_copy_type: uscCopyType,
     payment_variant: paymentVariant,
     recipient: recipientName,
     notes: notes || null,
+    reference_number: referenceNumber ?? null,
   });
 
   const handleSimulateSubmit = async (e: React.FormEvent) => {
@@ -130,7 +164,8 @@ export default function DocumentsPage() {
     if (!submission) return;
     setError(null);
     try {
-      const pdfBlob = await api.downloadApplicationPdf(buildPayload());
+      // Przekazujemy ten sam numer referencyjny co w podglądzie na ekranie i w nazwie pliku
+      const pdfBlob = await api.downloadApplicationPdf(buildPayload(submission.reference_number));
       const url = URL.createObjectURL(pdfBlob);
       const a = document.createElement("a");
       a.href = url;
@@ -142,12 +177,15 @@ export default function DocumentsPage() {
     }
   };
 
+  const showVariantAndParts =
+    appType === "leave_employer" || appType === "leave_adoption_foster" || appType === "zam_zus";
+
   return (
     <div>
       <PageHeader
         badge="Dokumenty i wnioski"
         title="Dokumenty, oficjalne wzory ZUS i generator wniosków"
-        description="Sprawdź wymagane dokumenty i terminy, pobierz oficjalne formularze ze strony ZUS / gov.pl lub wygeneruj gotowe pismo urlopowe zgodne z Rozporządzeniem MRPiPS z 11 marca 2025 r. (Dz.U. poz. 322)."
+        description="Sprawdź wymagane dokumenty i terminy, pobierz oficjalne formularze ze strony ZUS / gov.pl lub wygeneruj gotowe pismo urlopowe zgodne z Rozporządzeniem MRPiPS z 11 marca 2025 r. (Dz.U. poz. 322) oraz z 27 września 2026 r. (Dz.U. poz. 1316)."
       />
 
       <div className="grid gap-8 lg:grid-cols-12">
@@ -202,6 +240,7 @@ export default function DocumentsPage() {
                   <option value="uop">Umowa o pracę</option>
                   <option value="zlecenie">Umowa zlecenie</option>
                   <option value="jdg">Działalność gospodarcza (JDG)</option>
+                  <option value="none">Brak ubezpieczenia chorobowego</option>
                 </select>
               </div>
               <div>
@@ -213,7 +252,8 @@ export default function DocumentsPage() {
                   min={0}
                   value={employerCount}
                   onChange={(e) => setEmployerCount(Number(e.target.value))}
-                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700"
+                  disabled={insuranceTitle === "jdg" || insuranceTitle === "none"}
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm disabled:opacity-50 dark:border-slate-700"
                 />
               </div>
             </div>
@@ -221,7 +261,7 @@ export default function DocumentsPage() {
             {guidance && (
               <div className="mt-5 space-y-4">
                 <div className="rounded-xl bg-[#e6f4ec] p-4 text-xs text-[#005a27] dark:bg-[#007834]/20 dark:text-emerald-300">
-                  <p className="font-bold">Wypłacający zasiłek: {guidance.payer}</p>
+                  <p className="font-bold">Wypłacający świadczenie: {guidance.payer}</p>
                   <p className="mt-1">{guidance.payer_explanation}</p>
                 </div>
 
@@ -285,20 +325,32 @@ export default function DocumentsPage() {
                   className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700"
                 >
                   <option value="leave_employer">
-                    Wniosek do pracodawcy o urlop macierzyński i rodzicielski
+                    Wniosek do pracodawcy o urlop macierzyński i rodzicielski (§ 15)
+                  </option>
+                  <option value="leave_pre_birth">
+                    Wniosek o urlop macierzyński przed przewidywaną datą porodu (§ 2)
                   </option>
                   <option value="leave_supplementary">
-                    Wniosek o uzupełniający urlop macierzyński (wcześniak / hospitalizacja)
+                    Wniosek o uzupełniający urlop macierzyński — wcześniak / hospitalizacja (§ 14)
                   </option>
                   <option value="leave_work_combination">
-                    Wniosek o łączenie urlopu rodzicielskiego z pracą (maks. 1/2 etatu)
+                    Wniosek o łączenie urlopu rodzicielskiego z pracą — maks. 1/2 etatu (§ 16)
+                  </option>
+                  <option value="leave_paternity">
+                    Wniosek o urlop ojcowski — 2 tygodnie (§ 17)
+                  </option>
+                  <option value="leave_adoption_foster">
+                    Wniosek o urlop na warunkach macierzyńskiego — adopcja / rodzina zastępcza (§ 18)
                   </option>
                   <option value="leave_resignation">
-                    Wniosek o rezygnację z części urlopu macierzyńskiego
+                    Wniosek matki o rezygnację z części urlopu macierzyńskiego (§ 3)
+                  </option>
+                  <option value="leave_father_takeover">
+                    Wniosek ojca o przejęcie pozostałej części urlopu macierzyńskiego (§ 5)
                   </option>
                   <option value="zam_zus">Wniosek ZUS ZAM o zasiłek macierzyński</option>
                   <option value="usc_birth_certificate">
-                    Wniosek o odpis skrócony aktu urodzenia (USC)
+                    Wniosek o odpis aktu urodzenia — skrócony lub zupełny (USC)
                   </option>
                 </select>
               </div>
@@ -333,7 +385,9 @@ export default function DocumentsPage() {
               <div className="grid gap-3 sm:grid-cols-2">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
-                    Data urodzenia dziecka
+                    {appType === "leave_pre_birth"
+                      ? "Przewidywana data porodu"
+                      : "Data urodzenia dziecka"}
                   </label>
                   <input
                     type="date"
@@ -344,11 +398,29 @@ export default function DocumentsPage() {
                 </div>
                 {deadline21Preview && (
                   <div className="flex flex-col justify-center rounded-lg border border-[#007834]/25 bg-[#e6f4ec]/70 px-3 py-2 text-xs text-[#005a27] dark:border-emerald-700/40 dark:bg-emerald-950/40 dark:text-emerald-200">
-                    <span className="text-[11px]">Termin 21 dni (stawka 81,5%)</span>
+                    <span className="text-[11px]">
+                      Termin {deadlineDays} dni (stawka {combinedRateLabel})
+                    </span>
                     <span className="font-mono text-sm font-bold">{deadline21Preview}</span>
                   </div>
                 )}
               </div>
+
+              {appType === "usc_birth_certificate" && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    Rodzaj odpisu aktu urodzenia (USC)
+                  </label>
+                  <select
+                    value={uscCopyType}
+                    onChange={(e) => setUscCopyType(e.target.value as "skrocony" | "zupelny")}
+                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700"
+                  >
+                    <option value="skrocony">Odpis skrócony aktu urodzenia</option>
+                    <option value="zupelny">Odpis zupełny aktu urodzenia</option>
+                  </select>
+                </div>
+              )}
 
               {appType !== "usc_birth_certificate" && appType !== "leave_resignation" && (
                 <div className="grid gap-3 sm:grid-cols-2">
@@ -377,7 +449,7 @@ export default function DocumentsPage() {
                 </div>
               )}
 
-              {(appType === "leave_employer" || appType === "zam_zus") && (
+              {showVariantAndParts && (
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
@@ -388,18 +460,20 @@ export default function DocumentsPage() {
                       onChange={(e) => setPaymentVariant(e.target.value as PaymentVariant)}
                       className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700"
                     >
-                      <option value="81_5">81,5% (wniosek/deklaracja w 21 dni)</option>
+                      <option value="81_5">
+                        {combinedRateLabel} (wniosek/deklaracja w {deadlineDays} dni)
+                      </option>
                       <option value="100_70">100% macierzyński + 70% rodzicielski</option>
                     </select>
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
-                      Liczba części rodzicielskiego (1–5)
+                      Liczba części rodzicielskiego (1–{legalParams?.parental_max_parts ?? 5})
                     </label>
                     <input
                       type="number"
                       min={1}
-                      max={5}
+                      max={legalParams?.parental_max_parts ?? 5}
                       value={leaveParts}
                       onChange={(e) => setLeaveParts(Number(e.target.value))}
                       className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700"
@@ -409,45 +483,69 @@ export default function DocumentsPage() {
               )}
 
               {appType === "leave_work_combination" && (
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
-                    Wymiar czasu pracy (maks. 0.5 etatu)
+                <div className="space-y-2.5">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                      Wymiar czasu pracy (maks. {legalParams?.parental_work_max_fte ?? 0.5} etatu)
+                    </label>
+                    <input
+                      type="number"
+                      min={0.1}
+                      max={legalParams?.parental_work_max_fte ?? 0.5}
+                      step="any"
+                      value={workFte}
+                      onChange={(e) => setWorkFte(Number(e.target.value))}
+                      className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700"
+                    />
+                  </div>
+                  <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300">
+                    <input
+                      type="checkbox"
+                      checked={workDuringExtendedPart}
+                      onChange={(e) => setWorkDuringExtendedPart(e.target.checked)}
+                      className="h-4 w-4 shrink-0 accent-[#007834]"
+                    />
+                    Zamierzam łączyć również wydłużoną część urlopu z pracą (§ 16 pkt 4 Dz.U. 2025 poz. 322)
                   </label>
-                  <input
-                    type="number"
-                    min={0.1}
-                    max={0.5}
-                    step="any"
-                    value={workFte}
-                    onChange={(e) => setWorkFte(Number(e.target.value))}
-                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700"
-                  />
                 </div>
               )}
 
               {appType === "leave_supplementary" && (
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-3">
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
-                      Hospitalizacja dziecka od
+                      Termin zakończenia urlopu macierzyńskiego (§ 14 ust. 1 pkt 2)
                     </label>
                     <input
                       type="date"
-                      value={hospFrom}
-                      onChange={(e) => setHospFrom(e.target.value)}
+                      value={maternityEndDate}
+                      onChange={(e) => setMaternityEndDate(e.target.value)}
                       className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700"
                     />
                   </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
-                      Hospitalizacja dziecka do
-                    </label>
-                    <input
-                      type="date"
-                      value={hospTo}
-                      onChange={(e) => setHospTo(e.target.value)}
-                      className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700"
-                    />
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                        Hospitalizacja dziecka od
+                      </label>
+                      <input
+                        type="date"
+                        value={hospFrom}
+                        onChange={(e) => setHospFrom(e.target.value)}
+                        className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                        Hospitalizacja dziecka do
+                      </label>
+                      <input
+                        type="date"
+                        value={hospTo}
+                        onChange={(e) => setHospTo(e.target.value)}
+                        className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700"
+                      />
+                    </div>
                   </div>
                 </div>
               )}
@@ -468,10 +566,11 @@ export default function DocumentsPage() {
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
-                  Dodatkowe informacje (opcjonalnie)
+                  Dodatkowe informacje (opcjonalnie, maks. 2000 znaków)
                 </label>
                 <input
                   type="text"
+                  maxLength={2000}
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder="np. przejęcie pozostałej części urlopu przez ojca dziecka"

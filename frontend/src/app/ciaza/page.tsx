@@ -7,6 +7,7 @@ import { useUser } from "@/components/UserContext";
 import { api } from "@/lib/api";
 import type {
   InsuranceTitle,
+  LegalParameters,
   PregnancyBenefitResponse,
   WaitingPeriodExemptionReason,
 } from "@/lib/types";
@@ -14,6 +15,7 @@ import type {
 export default function PregnancyPage() {
   const { user } = useUser();
 
+  const [legalParams, setLegalParams] = useState<LegalParameters | null>(null);
   const [insuranceTitle, setInsuranceTitle] = useState<InsuranceTitle>(
     user?.insurance_title || "uop"
   );
@@ -34,6 +36,20 @@ export default function PregnancyPage() {
   const [result, setResult] = useState<PregnancyBenefitResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    api.getParameters().then(setLegalParams).catch(() => setLegalParams(null));
+  }, []);
+
+  const minWage = legalParams?.minimum_wage_gross ?? 4806;
+  const ssRate = legalParams?.employee_social_security_rate ?? 0.1371;
+  const minFullBase = (minWage * (1 - ssRate)).toFixed(2).replace(".", ",");
+  const minHalfBase = (minWage * 0.5 * (1 - ssRate)).toFixed(2).replace(".", ",");
+  const debtThreshold = (minWage * (legalParams?.debt_threshold_min_wage_fraction ?? 0.01))
+    .toFixed(2)
+    .replace(".", ",");
+  const pregMaxDays = legalParams?.sickness_benefit_pregnancy_max_days ?? 270;
+  const paramsYear = legalParams?.year ?? 2026;
 
   useEffect(() => {
     if (user) {
@@ -222,7 +238,7 @@ export default function PregnancyPage() {
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
                   <InfoTooltip
                     label="Wymiar etatu (art. 45)"
-                    tooltip="Minimalna podstawa wymiaru zasiłku pracownika (4 147,10 zł dla pełnego etatu w 2026 r.) ulega proporcjonalnemu zmniejszeniu przy niepełnym etacie (np. 0.5 etatu = 2 073,55 zł)."
+                    tooltip={`Minimalna podstawa wymiaru zasiłku pracownika (${minFullBase} zł dla pełnego etatu w ${paramsYear} r.) ulega proporcjonalnemu zmniejszeniu przy niepełnym etacie (np. 0.5 etatu = ${minHalfBase} zł).`}
                   />
                 </label>
                 <input
@@ -290,7 +306,7 @@ export default function PregnancyPage() {
                   <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
                     <InfoTooltip
                       label="Zaległość składkowa ZUS (zł)"
-                      tooltip="Art. 2a ustawy zasiłkowej: zadłużenie przekraczające 1% minimalnego wynagrodzenia (48,06 zł w 2026 r.) wstrzymuje wypłatę zasiłku na JDG do czasu spłaty (przedawnienie po 6 miesiącach)."
+                      tooltip={`Art. 2a ustawy zasiłkowej: zadłużenie przekraczające 1% minimalnego wynagrodzenia (${debtThreshold} zł w ${paramsYear} r.) wstrzymuje wypłatę zasiłku na JDG do czasu spłaty (przedawnienie po ${legalParams?.claim_limitation_months ?? 6} miesiącach).`}
                     />
                   </label>
                   <input
@@ -467,9 +483,9 @@ export default function PregnancyPage() {
               Świadczenie rehabilitacyjne w okresie ciąży (art. 18–19 ustawy zasiłkowej)
             </h3>
             <p className="mt-1 leading-relaxed">
-              Jeśli po wyczerpaniu 270 dni okresu zasiłkowego kobieta nadal jest niezdolna do pracy,
+              Jeśli po wyczerpaniu {pregMaxDays} dni okresu zasiłkowego kobieta nadal jest niezdolna do pracy,
               a dalsze leczenie lub rehabilitacja rokują odzyskanie zdolności do pracy, przysługuje
-              jej świadczenie rehabilitacyjne przez okres do 12 miesięcy (360 dni). W okresie ciąży
+              jej świadczenie rehabilitacyjne przez okres do 12 miesięcy ({legalParams?.rehabilitation_benefit_max_days ?? 360} dni). W okresie ciąży
               wynosi ono <strong>100% zwaloryzowanej podstawy wymiaru zasiłku chorobowego</strong>.
             </p>
             {result && result.eligible_sickness_benefit && result.rehabilitation_max_days > 0 && (

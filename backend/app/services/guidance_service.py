@@ -69,6 +69,65 @@ def get_risks() -> list[RiskItem]:
             how_to_avoid="Jeśli pracujesz na zleceniu lub JDG, zadbaj o ciągłość dobrowolnego ubezpieczenia chorobowego.",
             applies_to=["Umowa zlecenie", "JDG"],
         ),
+        RiskItem(
+            id="wykorzystywanie_ezla_art17",
+            title="Praca zarobkowa lub niewłaściwe korzystanie ze zwolnienia e-ZLA (art. 17)",
+            severity="high",
+            description=(
+                "Wykonywanie pracy zarobkowej w okresie orzeczonej niezdolności do pracy albo wykorzystywanie zwolnienia "
+                "w sposób niezgodny z jego celem skutkuje utratą prawa do zasiłku chorobowego za cały okres tego zwolnienia."
+            ),
+            how_to_avoid="Podczas e-ZLA nie wykonuj pracy zarobkowej (dotyczy również podpisywania faktur/umów na JDG) i przestrzegaj zaleceń lekarskich.",
+            applies_to=["Umowa o pracę", "Umowa zlecenie", "JDG"],
+        ),
+        RiskItem(
+            id="zmiana_etatu_lub_pracodawcy_art40",
+            title="Zmiana wymiaru czasu pracy lub pracodawcy w trakcie ciąży (art. 40)",
+            severity="high",
+            description=(
+                "Zmiana wymiaru etatu w okresie, z którego ustalana jest podstawa zasiłku (np. zmniejszenie etatu w ciąży), "
+                "powoduje wyliczenie podstawy wyłącznie z wynagrodzenia ustalonego dla nowego wymiaru czasu pracy. "
+                "Z kolei zmiana pracodawcy w ciąży wiąże się z nową podstawą wymiaru i koniecznością zachowania ciągłości ubezpieczenia (przerwa ≤ 30 dni)."
+            ),
+            how_to_avoid="Przed zmianą etatu lub pracodawcy w ciąży przelicz wpływ na podstawę wymiaru zasiłku i upewnij się, że nie powstanie przerwa w ubezpieczeniu dłuższa niż 30 dni.",
+            applies_to=["Umowa o pracę"],
+        ),
+        RiskItem(
+            id="wyrejestrowanie_dobrowolne_zua",
+            title="Automatyczne wyrejestrowanie z dobrowolnego chorobowego po rozpoczęciu macierzyńskiego",
+            severity="medium",
+            description=(
+                "Rozpoczęcie pobierania zasiłku macierzyńskiego przez osobę na JDG lub umowie zleceniu powoduje ustanie "
+                "dobrowolnego ubezpieczenia chorobowego. Brak ponownego zgłoszenia po zakończeniu zasiłku oznacza brak ochrony przy kolejnym L4."
+            ),
+            how_to_avoid="Po zakończeniu pobierania zasiłku macierzyńskiego złóż ponownie zgłoszenie ZUS ZUA do dobrowolnego ubezpieczenia chorobowego w terminie 7 dni (aby zachować ciągłość bez ponownego 90-dniowego wyczekiwania).",
+            applies_to=["Umowa zlecenie", "JDG"],
+        ),
+        RiskItem(
+            id="przedawnienie_i_ojcowski",
+            title="Przedawnienie roszczenia o zasiłek po 6 miesiącach (art. 67) i wygasanie urlopu ojcowskiego",
+            severity="medium",
+            description=(
+                "Roszczenie o wypłatę zasiłku przedawnia się po 6 miesiącach od ostatniego dnia okresu, za który przysługuje "
+                "(także gdy wypłata była wstrzymana z powodu zadłużenia JDG z art. 2a). Urlop ojcowski (2 tyg.) przepada, "
+                "jeśli nie zostanie wykorzystany do ukończenia przez dziecko 12 miesięcy życia (lub 12 mies. od uprawomocnienia adopcji, maks. do 14 r.ż.)."
+            ),
+            how_to_avoid="Składaj wnioski niezwłocznie, spłać ewentualne zadłużenie JDG w ciągu 6 miesięcy oraz zaplanuj urlop ojcowski przed 1. urodzinami dziecka.",
+            applies_to=["Umowa o pracę", "Umowa zlecenie", "JDG"],
+        ),
+        RiskItem(
+            id="ochrona_trwalosci_art177_kp",
+            title="Szczególna ochrona trwałości stosunku pracy — art. 177 Kodeksu pracy",
+            severity="info",
+            description=(
+                "W okresie ciąży, urlopów rodzicielskich oraz od dnia złożenia wniosku o urlop (najwcześniej 14 dni przed "
+                "częścią macierzyńskiego, 21 dni przed uzupełniającym/rodzicielskim, 7 dni przed ojcowskim) pracodawca nie "
+                "może prowadzić nawet przygotowań do wypowiedzenia umowy ani jej rozwiązać (poza upadłością/likwidacją lub dyscyplinarką za zgodą związków). "
+                "Uwaga na wyjątki: automatyczne przedłużenie do dnia porodu (art. 177 § 3 KP) nie dotyczy umowy na zastępstwo ani umowy na okres próbny ≤ 1 miesiąca."
+            ),
+            how_to_avoid="Złóż wniosek o urlop w ustawowych terminach (14/21/7 dni) i sprawdź rodzaj swojej umowy na czas określony; w razie naruszenia przysługuje odwołanie do sądu pracy i ochrona zasiłkowa z art. 30 ustawy zasiłkowej.",
+            applies_to=["Umowa o pracę"],
+        ),
     ]
 
 

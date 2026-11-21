@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class LegalParameters(BaseModel):
@@ -29,6 +29,18 @@ class LegalParameters(BaseModel):
     maternity_weeks_by_children: dict[str, int] = Field(
         default_factory=lambda: {"1": 20, "2": 31, "3": 33, "4": 35, "5": 37}
     )
+
+    @field_validator("maternity_weeks_by_children")
+    @classmethod
+    def validate_maternity_weeks(cls, v: dict[str, int]) -> dict[str, int]:
+        if not v:
+            raise ValueError("Słownik wymiarów urlopu macierzyńskiego nie może być pusty.")
+        for k, weeks in v.items():
+            if weeks < 1 or weeks > 52:
+                raise ValueError(
+                    f"Wymiar urlopu macierzyńskiego dla klucza '{k}' musi mieścić się w zakresie 1–52 tygodni (otrzymano {weeks})."
+                )
+        return v
 
     parental_weeks_single: int = Field(41, ge=1)
     parental_weeks_multiple: int = Field(43, ge=1)

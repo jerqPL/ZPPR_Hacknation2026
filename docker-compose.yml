@@ -4,7 +4,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - ZPPR_CORS_ORIGINS=["http://localhost:3000"]
+      - ZPPR_CORS_ORIGINS=["http://localhost:3000","http://127.0.0.1:3000"]
       - ZPPR_ADMIN_API_KEY=${ZPPR_ADMIN_API_KEY:-zppr-admin-2026}
     volumes:
       - zppr_data:/app/data

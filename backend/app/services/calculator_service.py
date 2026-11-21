@@ -134,8 +134,8 @@ def calculate_individual_benefit_base(
             if is_employee
             else "Art. 48–52 ustawy zasiłkowej (przeciętny miesięczny przychód ubezpieczonego niebędącego pracownikiem)"
         )
-        # Odrzucamy zera i wartości ujemne (np. błędy wpisu lub miesiące zerowe)
-        raw_salaries = [s for s in req.monthly_gross_salaries if s > 0][:12]
+        # Odrzucamy zera i wartości ujemne (np. błędy wpisu lub miesiące zerowe) — art. 36: ostatnie 12 miesięcy
+        raw_salaries = [s for s in req.monthly_gross_salaries if s > 0][-12:]
         if not raw_salaries:
             raise HTTPException(
                 status_code=422,
@@ -518,7 +518,8 @@ def calculate_pregnancy_benefit(
             params,
             fte_fraction=req.fte_fraction,
         )
-        daily = round(base / 30.0, 2)
+        monthly_mat = round(base * params.maternity_rate_standard, 2)
+        daily = round(monthly_mat / 30.0, 2)
         return PregnancyBenefitResponse(
             eligible_sickness_benefit=False,
             eligible_maternity_equivalent=True,
@@ -529,7 +530,7 @@ def calculate_pregnancy_benefit(
             benefit_base_monthly=base,
             benefit_base_explanation=base_expl,
             daily_benefit_gross=daily,
-            monthly_benefit_gross=round(base * params.maternity_rate_standard, 2),
+            monthly_benefit_gross=monthly_mat,
             rehabilitation_monthly_gross=0.0,
             rehabilitation_daily_gross=0.0,
             rehabilitation_max_days=0,
@@ -579,7 +580,8 @@ def calculate_pregnancy_benefit(
             params,
             fte_fraction=req.fte_fraction,
         )
-        daily = round(base / 30.0, 2)
+        monthly_mat = round(base * params.maternity_rate_standard, 2)
+        daily = round(monthly_mat / 30.0, 2)
         return PregnancyBenefitResponse(
             eligible_sickness_benefit=False,
             eligible_maternity_equivalent=False,
@@ -590,7 +592,7 @@ def calculate_pregnancy_benefit(
             benefit_base_monthly=base,
             benefit_base_explanation=base_expl,
             daily_benefit_gross=daily,
-            monthly_benefit_gross=round(base * params.maternity_rate_standard, 2),
+            monthly_benefit_gross=monthly_mat,
             rehabilitation_monthly_gross=0.0,
             rehabilitation_daily_gross=0.0,
             rehabilitation_max_days=0,
@@ -728,9 +730,9 @@ def calculate_pregnancy_benefit(
         benefit_base_explanation=base_expl,
         daily_benefit_gross=daily,
         monthly_benefit_gross=monthly,
-        rehabilitation_monthly_gross=rehab_monthly,
-        rehabilitation_daily_gross=rehab_daily,
-        rehabilitation_max_days=params.rehabilitation_benefit_max_days,
+        rehabilitation_monthly_gross=rehab_monthly if waiting_met else 0.0,
+        rehabilitation_daily_gross=rehab_daily if waiting_met else 0.0,
+        rehabilitation_max_days=params.rehabilitation_benefit_max_days if waiting_met else 0,
         max_benefit_days=params.sickness_benefit_pregnancy_max_days,
         benefit_duration_label=duration_label,
         employer_pay_days=employer_days,
@@ -976,7 +978,7 @@ def calculate_integrated_maternity(
                     warnings=[f"Dla rodziny zastępczej niezawodowej zasiłek przysługuje do ukończenia przez dziecko {max_age} roku życia."],
                     required_documents=[],
                 )
-            weeks_until_age_limit = max(1, int(round((max_age - req.child_age_years) * params.weeks_per_year)))
+            weeks_until_age_limit = max(1, math.floor((max_age - req.child_age_years) * params.weeks_per_year + 1e-9))
     elif req.scenario == BenefitScenario.ADOPTION:
         max_age = params.adoption_max_child_age
         if req.child_age_years is not None:
@@ -1000,7 +1002,7 @@ def calculate_integrated_maternity(
                     warnings=[f"Przy przysposobieniu zasiłek macierzyński przysługuje do ukończenia przez dziecko {max_age} roku życia."],
                     required_documents=[],
                 )
-            weeks_until_age_limit = max(1, int(round((max_age - req.child_age_years) * params.weeks_per_year)))
+            weeks_until_age_limit = max(1, math.floor((max_age - req.child_age_years) * params.weeks_per_year + 1e-9))
 
     p2_eligible = (
         not req.single_parent_or_no_second_parent
@@ -1112,6 +1114,7 @@ def calculate_integrated_maternity(
                 params.parental_weeks_single if eff_children_u == 1 else params.parental_weeks_multiple
             )
 
+        orig_pool_u = parental_pool
         if req.scenario == BenefitScenario.ADOPTION and not apply_reduced_9_weeks_regime and weeks_until_age_limit is not None:
             if parental_pool > weeks_until_age_limit:
                 parental_pool = weeks_until_age_limit
@@ -1119,7 +1122,6 @@ def calculate_integrated_maternity(
                     f"Wymiar urlopu rodzicielskiego przy przysposobieniu ograniczono do granicy 14. roku życia dziecka ({parental_pool} tyg. — art. 183 § 4¹/§ 4⁴ KP)."
                 )
 
-        orig_pool_u = parental_pool
         if req.scenario == BenefitScenario.ADOPTION and req.previously_used_foster_parental_weeks > 0:
             parental_pool = max(0, parental_pool - req.previously_used_foster_parental_weeks)
             p2_warnings.append(
@@ -1159,8 +1161,17 @@ def calculate_integrated_maternity(
                         f"Liczbę tygodni łączenia urlopu rodzicielskiego z pracą ograniczono do wymiaru urlopu ojca ({father_par_weeks} tyg.)."
                     )
                 eff_work_u = min(req.father_combined_work_weeks, father_par_weeks)
+                max_ext_days_u = parental_pool * 7
+                if (
+                    req.scenario == BenefitScenario.ADOPTION
+                    and not apply_reduced_9_weeks_regime
+                    and weeks_until_age_limit is not None
+                ):
+                    max_ext_days_u = min(
+                        max_ext_days_u, max(0, (weeks_until_age_limit - father_par_weeks) * 7)
+                    )
                 ext_days_u = _calc_work_extension_days(
-                    eff_work_u, fte_u, req.father_work_during_extended_part, parental_pool * 7
+                    eff_work_u, fte_u, req.father_work_during_extended_part, max_ext_days_u
                 )
 
         breakdown_uninsured: list[LeaveBreakdownItem] = []
@@ -1265,20 +1276,15 @@ def calculate_integrated_maternity(
 
     # Zadłużenie JDG (art. 2a) + informacja o automatycznym wyrejestrowaniu z dobrowolnego chorobowego (JDG i ZLECENIE)
     p1_debt_suspended = req.insurance_title == InsuranceTitle.JDG and req.contribution_debt_pln > debt_threshold
-    p2_debt_suspended = (
+    p2_has_blocking_debt = (
         p2_eligible
         and req.second_parent_insurance_title == InsuranceTitle.JDG
         and req.second_parent_contribution_debt_pln > debt_threshold
     )
-    payout_suspended_due_to_debt = p1_debt_suspended or p2_debt_suspended
 
     if p1_debt_suspended:
         warnings.append(
             f"UWAGA (art. 2a ustawy zasiłkowej): Zadłużenie ZUS Rodzica 1 na JDG ({req.contribution_debt_pln:.2f} zł > {params.debt_threshold_min_wage_fraction*100:.1f}% płacy minimalnej tj. {debt_threshold:.2f} zł) wstrzymuje wypłatę zasiłku do czasu spłaty całości zadłużenia (przedawnienie po {params.claim_limitation_months} miesiącach)."
-        )
-    if p2_debt_suspended:
-        warnings.append(
-            f"UWAGA (art. 2a ustawy zasiłkowej): Zadłużenie ZUS Rodzica 2 na JDG ({req.second_parent_contribution_debt_pln:.2f} zł > {debt_threshold:.2f} zł) wstrzymuje wypłatę zasiłku dla 2. rodzica do czasu spłaty całości zadłużenia."
         )
     if req.insurance_title in (InsuranceTitle.JDG, InsuranceTitle.ZLECENIE):
         warnings.append(
@@ -1448,6 +1454,8 @@ def calculate_integrated_maternity(
         else:
             docs.append("Kopia zaświadczenia lekarskiego „Za życiem” (art. 4 ust. 3 ustawy o wsparciu kobiet w ciąży i rodzin „Za życiem”)")
 
+    original_parental_pool = parental_base_weeks
+
     # Art. 183 § 4¹ i § 4⁴ KP: przy adopcji poza trybem minimalnym (§ 3 / § 4² / § 4⁵) urlop rodzicielski przysługuje nie dłużej niż do ukończenia 14. r.ż.
     if (
         req.scenario == BenefitScenario.ADOPTION
@@ -1465,8 +1473,6 @@ def calculate_integrated_maternity(
             warnings.append(
                 f"Zgodnie z art. 183 § 4¹/§ 4⁴ KP urlop rodzicielski przy przysposobieniu przysługuje nie dłużej niż do ukończenia przez dziecko 14. roku życia — po wykorzystaniu {maternity_weeks} tyg. na warunkach macierzyńskiego pozostaje {parental_base_weeks} tyg. rodzicielskiego. W razie wyboru trybu minimalnego z art. 183 § 3 (9 tyg. na warunkach macierzyńskiego) przysługuje gwarantowane {reduced_par_ref} tyg. rodzicielskiego (art. 183 § 4²/§ 4⁵ KP)."
             )
-
-    original_parental_pool = parental_base_weeks
 
     if req.scenario == BenefitScenario.ADOPTION:
         if req.previously_used_foster_maternity_weeks > 0:
@@ -1537,6 +1543,18 @@ def calculate_integrated_maternity(
 
     # Łączenie urlopu rodzicielskiego z pracą — wspólny limit wydłużenia (art. 182¹ᶠ § 1, § 1¹, § 4, § 7 KP)
     remaining_ext_cap_days = parental_base_weeks * 7
+    if (
+        req.scenario == BenefitScenario.ADOPTION
+        and not apply_reduced_9_weeks_regime
+        and weeks_until_age_limit is not None
+    ):
+        max_ext_until_14_days = max(0, (weeks_until_age_limit - maternity_weeks - mother_parental - father_parental) * 7)
+        if remaining_ext_cap_days > max_ext_until_14_days:
+            remaining_ext_cap_days = max_ext_until_14_days
+            if req.combine_parental_with_work or req.father_combine_parental_with_work:
+                warnings.append(
+                    "Wydłużenie urlopu rodzicielskiego z tytułu łączenia z pracą przy przysposobieniu ograniczono tak, aby łączny okres nie przekroczył ukończenia przez dziecko 14. roku życia (art. 183 § 4¹/§ 4⁴ KP)."
+                )
 
     # Rodzic 1
     extended_days_p1 = 0
@@ -1808,9 +1826,17 @@ def calculate_integrated_maternity(
             )
         )
 
+    p2_claims_any_leave = (father_mat + father_parental + paternity_weeks) > 0
+    p2_debt_suspended = p2_has_blocking_debt and p2_claims_any_leave
+    payout_suspended_due_to_debt = p1_debt_suspended or p2_debt_suspended
+    if p2_debt_suspended:
+        warnings.append(
+            f"UWAGA (art. 2a ustawy zasiłkowej): Zadłużenie ZUS Rodzica 2 na JDG ({req.second_parent_contribution_debt_pln:.2f} zł > {debt_threshold:.2f} zł) wstrzymuje wypłatę zasiłku dla 2. rodzica do czasu spłaty całości zadłużenia."
+        )
+
     if top_up_applied:
         warnings.append(
-            f"Zastosowano ustawowe podwyższenie zasiłku macierzyńskiego do wysokości świadczenia rodzicielskiego ({min_monthly_floor:.2f} zł/mies. netto — art. 31 ust. 3a–3c ustawy zasiłkowej; przy łączeniu z pracą limit podwyższenia jest zmniejszany proporcjonalnie do wymiaru urlopu)."
+            f"Zastosowano ustawowe podwyższenie zasiłku macierzyńskiego do wysokości świadczenia rodzicielskiego ({min_monthly_floor:.2f} zł/mies. netto — art. 31 ust. 3a–3c ustawy zasiłkowej; przy złożonym PIT-2 zaliczka PIT wynosi 0 zł do 2 500 zł/mies., więc netto = brutto; przy łączeniu z pracą limit podwyższenia jest zmniejszany proporcjonalnie do wymiaru urlopu)."
         )
 
     # Dokumenty (zgodne z rozporządzeniem z 27.09.2026 r.)

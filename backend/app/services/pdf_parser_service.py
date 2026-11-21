@@ -2,6 +2,7 @@ import io
 import re
 import xml.etree.ElementTree as ET
 from pypdf import PdfReader
+from pypdf.generic import ArrayObject, StreamObject
 from app.models.guidance import ExtractedPdfFields, PdfAnalysisResult, SampleCase
 from app.services.parameter_store import parameter_store
 
@@ -176,39 +177,153 @@ def list_sample_cases() -> list[SampleCase]:
 
 # Pełny katalog oficjalnych formularzy ZUS (zasiłki, rodzicielstwo, zgłoszenia, zaświadczenia)
 ZUS_FORM_CATALOG: list[tuple[str, re.Pattern[str], str]] = [
-    ("Z-3A", re.compile(r"\bZ-3A\b", re.IGNORECASE), "Zaświadczenie płatnika składek (dla zleceniobiorcy)"),
-    ("Z-3B", re.compile(r"\bZ-3B\b", re.IGNORECASE), "Zaświadczenie płatnika składek (archiwalny — zlikwidowany 24.10.2026)"),
-    ("Z-3", re.compile(r"\bZ-3\b", re.IGNORECASE), "Zaświadczenie płatnika składek (dla pracownika)"),
-    ("ZAM", re.compile(r"\b(?:ZUS\s+)?ZAM\b|\bZAS-54\b"), "Wniosek o zasiłek macierzyński (od 24.10.2026 obejmuje też ZUR i ZAO)"),
+    ("Z-3A", re.compile(r"\bZ-?3A\b", re.IGNORECASE), "Zaświadczenie płatnika składek (dla zleceniobiorcy)"),
+    ("Z-3B", re.compile(r"\bZ-?3B\b", re.IGNORECASE), "Zaświadczenie płatnika składek (archiwalny — zlikwidowany 24.10.2026)"),
+    ("Z-3", re.compile(r"\bZ-?3\b(?!\s*[AB]\b)", re.IGNORECASE), "Zaświadczenie płatnika składek (dla pracownika)"),
+    (
+        "ZAM",
+        re.compile(r"\bZUS\s+ZAM\b|\bZAS-54\b|\b(?:FORMULARZ|WNIOSEK|DRUK)\s+ZAM\b|(?<!ADRES\s)(?<!MIEJSCE\s)(?<!UL\.\s)\bZAM\b(?!\.)"),
+        "Wniosek o zasiłek macierzyński (od 24.10.2026 obejmuje też ZUR i ZAO)",
+    ),
     ("ZUR", re.compile(r"\b(?:ZUS\s+)?ZUR\b"), "Wniosek o zasiłek macierzyński za okres urlopu rodzicielskiego (połączony z ZAM)"),
     ("ZAO", re.compile(r"\b(?:ZUS\s+)?ZAO\b|\bZAS-34\b"), "Wniosek o zasiłek macierzyński za okres urlopu ojcowskiego (połączony z ZAM)"),
-    ("ZAS-53", re.compile(r"\bZAS-53\b", re.IGNORECASE), "Wniosek o zasiłek chorobowy"),
-    ("ZAS-12", re.compile(r"\bZAS-12\b", re.IGNORECASE), "Zaświadczenie płatnika składek (dalszy okres zasiłku)"),
-    ("ZAS-36", re.compile(r"\bZAS-36\b", re.IGNORECASE), "Wniosek o zasiłek opiekuńczy z powodu sprawowania opieki nad dzieckiem"),
-    ("ZAS-38", re.compile(r"\bZAS-38\b", re.IGNORECASE), "Wniosek o zasiłek opiekuńczy (inny członek rodziny)"),
-    ("Z-15A", re.compile(r"\bZ-15A\b", re.IGNORECASE), "Wniosek o zasiłek opiekuńczy nad dzieckiem"),
-    ("Z-15B", re.compile(r"\bZ-15B\b", re.IGNORECASE), "Wniosek o zasiłek opiekuńczy nad innym członkiem rodziny"),
-    ("Z-10", re.compile(r"\bZ-10\b", re.IGNORECASE), "Oświadczenie po ustaniu tytułu ubezpieczenia chorobowego"),
-    ("Z-12", re.compile(r"\bZ-12\b|\bZPL\b", re.IGNORECASE), "Wniosek o zasiłek pogrzebowy"),
-    ("ZNP-7", re.compile(r"\bZNP-7\b", re.IGNORECASE), "Wniosek o świadczenie rehabilitacyjne"),
-    ("E-ZLA", re.compile(r"\bE-ZLA\b", re.IGNORECASE), "Elektroniczne zaświadczenie lekarskie o niezdolności do pracy"),
+    ("ZAS-53", re.compile(r"\bZAS-?53\b", re.IGNORECASE), "Wniosek o zasiłek chorobowy"),
+    ("ZAS-12", re.compile(r"\bZAS-?12\b", re.IGNORECASE), "Zaświadczenie płatnika składek (dalszy okres zasiłku)"),
+    ("ZAS-36", re.compile(r"\bZAS-?36\b", re.IGNORECASE), "Wniosek o zasiłek opiekuńczy z powodu sprawowania opieki nad dzieckiem"),
+    ("ZAS-38", re.compile(r"\bZAS-?38\b", re.IGNORECASE), "Wniosek o zasiłek opiekuńczy (inny członek rodziny)"),
+    ("Z-15A", re.compile(r"\bZ-?15A\b", re.IGNORECASE), "Wniosek o zasiłek opiekuńczy nad dzieckiem"),
+    ("Z-15B", re.compile(r"\bZ-?15B\b", re.IGNORECASE), "Wniosek o zasiłek opiekuńczy nad innym członkiem rodziny"),
+    ("Z-10", re.compile(r"\bZ-?10\b", re.IGNORECASE), "Oświadczenie po ustaniu tytułu ubezpieczenia chorobowego"),
+    ("Z-12", re.compile(r"\bZ-?12\b|\bZPL\b", re.IGNORECASE), "Wniosek o zasiłek pogrzebowy"),
+    ("ZNP-7", re.compile(r"\bZNP-?7\b", re.IGNORECASE), "Wniosek o świadczenie rehabilitacyjne"),
+    ("E-ZLA", re.compile(r"\bE-?ZLA\b", re.IGNORECASE), "Elektroniczne zaświadczenie lekarskie o niezdolności do pracy"),
     ("ERU", re.compile(r"\bERU\b"), "Oświadczenie o sytuacji osobistej, rodzinnej, majątkowej i materialnej (rodzicielskie świadczenie uzupełniające Mama 4+)"),
     ("ERSU", re.compile(r"\bERSU\b"), "Wniosek o rodzicielskie świadczenie uzupełniające (Mama 4+)"),
     ("ZUS ZUA", re.compile(r"\bZUS\s+ZUA\b|\bZUA\b"), "Zgłoszenie do ubezpieczeń społecznych i zdrowotnego"),
     ("ZUS ZZA", re.compile(r"\bZUS\s+ZZA\b"), "Zgłoszenie wyłącznie do ubezpieczenia zdrowotnego"),
     ("ZUS ZWUA", re.compile(r"\bZUS\s+ZWUA\b|\bZWUA\b"), "Wyrejestrowanie z ubezpieczeń"),
     ("POŚWIADCZENIE UBEZPIECZENIA", re.compile(r"POŚWIADCZENI[EU]\s+UBEZPIECZENI", re.IGNORECASE), "Poświadczenie ubezpieczenia chorobowego ZUS"),
-    ("US-7", re.compile(r"\bUS-7\b", re.IGNORECASE), "Wniosek o wydanie zaświadczenia o przebiegu ubezpieczeń"),
-    ("RD-3", re.compile(r"\bRD-3\b", re.IGNORECASE), "Wniosek o zaświadczenie o niezaleganiu w opłacaniu składek"),
+    ("US-7", re.compile(r"\bUS-?7\b", re.IGNORECASE), "Wniosek o wydanie zaświadczenia o przebiegu ubezpieczeń"),
+    ("RD-3", re.compile(r"\bRD-?3\b", re.IGNORECASE), "Wniosek o zaświadczenie o niezaleganiu w opłacaniu składek"),
 ]
 
 _FORM_PATTERNS = [(code, pat) for code, pat, _ in ZUS_FORM_CATALOG]
 _FORM_DESCRIPTIONS = {code: desc for code, _, desc in ZUS_FORM_CATALOG}
 
+_TITLE_HINTS: list[tuple[str, re.Pattern[str]]] = [
+    ("ZAM", re.compile(r"WNIOSEK\s+O\s+ZASIŁEK\s+MACIERZYŃSKI", re.IGNORECASE)),
+    ("ZAS-53", re.compile(r"WNIOSEK\s+O\s+ZASIŁEK\s+CHOROBOWY", re.IGNORECASE)),
+    ("Z-12", re.compile(r"WNIOSEK\s+O\s+ZASIŁEK\s+POGRZEBOWY", re.IGNORECASE)),
+    ("ZNP-7", re.compile(r"WNIOSEK\s+O\s+ŚWIADCZENIE\s+REHABILITACYJNE", re.IGNORECASE)),
+    ("ERU", re.compile(r"RODZICIELSKIE\s+ŚWIADCZENIE\s+UZUPEŁNIAJĄCE", re.IGNORECASE)),
+    ("Z-3A", re.compile(r"ZAŚWIADCZENIE\s+PŁATNIKA\s+SKŁADEK.*ZLECEN", re.IGNORECASE | re.DOTALL)),
+    ("Z-3", re.compile(r"ZAŚWIADCZENIE\s+PŁATNIKA\s+SKŁADEK", re.IGNORECASE)),
+]
 
-def _extract_acroform_and_xfa_fields(reader: PdfReader) -> dict[str, str]:
-    """Wyciąga wypełnione pola z formularzy AcroForm oraz Adobe LiveCycle XFA (oficjalne PDF-y ZUS)."""
+
+def _read_raw_xfa_packets(reader: PdfReader) -> list[str]:
+    """Odczytuje pakiety XML XFA zarówno ze skompresowanych, nieskompresowanych, jak i jednostrumieniowych PDF-ów."""
+    packets: list[str] = []
+
+    # 1. Niskopoziomowy odczyt /Root -> /AcroForm -> /XFA (obsługuje nieskompresowane i jednostrumieniowe XFA)
+    try:
+        root = reader.trailer.get("/Root")
+        if hasattr(root, "get_object"):
+            root = root.get_object()
+        acro = root.get("/AcroForm") if isinstance(root, dict) else None
+        if hasattr(acro, "get_object"):
+            acro = acro.get_object()
+        xfa_obj = acro.get("/XFA") if isinstance(acro, dict) else None
+        if hasattr(xfa_obj, "get_object"):
+            xfa_obj = xfa_obj.get_object()
+
+        if isinstance(xfa_obj, StreamObject):
+            raw = xfa_obj.get_data()
+            if raw:
+                packets.append(raw.decode("utf-8", errors="ignore"))
+        elif isinstance(xfa_obj, ArrayObject):
+            i = 0
+            while i < len(xfa_obj):
+                item = xfa_obj[i]
+                if hasattr(item, "get_object"):
+                    item = item.get_object()
+                if isinstance(item, StreamObject):
+                    try:
+                        raw = item.get_data()
+                        if raw:
+                            packets.append(raw.decode("utf-8", errors="ignore"))
+                    except Exception:
+                        pass
+                    i += 1
+                else:
+                    # Para [nazwa_pakietu, strumień]
+                    label = str(item).lower()
+                    if i + 1 < len(xfa_obj):
+                        stream = xfa_obj[i + 1]
+                        if hasattr(stream, "get_object"):
+                            stream = stream.get_object()
+                        if isinstance(stream, StreamObject) and any(
+                            k in label for k in ("dataset", "form", "data", "xfa")
+                        ):
+                            try:
+                                raw = stream.get_data()
+                                if raw:
+                                    packets.append(raw.decode("utf-8", errors="ignore"))
+                            except Exception:
+                                pass
+                    i += 2
+    except Exception:
+        pass
+
+    # 2. Fallback przez wbudowane reader.xfa (pypdf)
+    if not packets:
+        try:
+            xfa = getattr(reader, "xfa", None)
+            if isinstance(xfa, dict):
+                for key in ("datasets", "form"):
+                    val = xfa.get(key)
+                    if isinstance(val, bytes):
+                        packets.append(val.decode("utf-8", errors="ignore"))
+                    elif isinstance(val, str):
+                        packets.append(val)
+        except Exception:
+            pass
+
+    return packets
+
+
+def _walk_xfa_element(
+    elem: ET.Element,
+    path: list[str],
+    entries: list[tuple[str, str]],
+) -> None:
+    tag = elem.tag.split("}")[-1].strip()
+    cur_path = [*path, tag] if tag else path
+    txt = (elem.text or "").strip()
+    if txt and txt.lower() not in ("0", "false", "off") and len(txt) <= 120 and tag:
+        full_key = "/".join(cur_path[-3:])
+        entries.append((full_key, txt))
+    for child in elem:
+        _walk_xfa_element(child, cur_path, entries)
+
+
+def _extract_acroform_and_xfa_fields(reader: PdfReader) -> tuple[dict[str, str], list[tuple[str, str]]]:
+    """Wyciąga wypełnione pola z formularzy AcroForm oraz Adobe LiveCycle XFA (zachowując powtarzające się wiersze!)."""
     extracted: dict[str, str] = {}
+    entries: list[tuple[str, str]] = []
+
+    def _record(path_key: str, val_str: str) -> None:
+        leaf = path_key.split("/")[-1].split(".")[-1].replace("[0]", "").strip()
+        if not leaf:
+            return
+        entries.append((path_key, val_str))
+        if leaf not in extracted:
+            extracted[leaf] = val_str
+        else:
+            idx = 2
+            while f"{leaf}_{idx}" in extracted:
+                idx += 1
+            extracted[f"{leaf}_{idx}"] = val_str
 
     # 1. Standardowe pola AcroForm (np. ZUS 'do wydruku' / Adobe Reader)
     try:
@@ -222,32 +337,26 @@ def _extract_acroform_and_xfa_fields(reader: PdfReader) -> dict[str, str]:
                 continue
             if val_str.startswith("/"):
                 val_str = val_str[1:]
-            clean_name = name.split(".")[-1].replace("[0]", "").strip()
-            if clean_name and clean_name not in extracted:
-                extracted[clean_name] = val_str
+            clean_path = re.sub(r"\[\d+\]", "", name).replace(".", "/").strip("/")
+            if clean_path:
+                _record(clean_path, val_str)
     except Exception:
         pass
 
-    # 2. Pola XFA (XML datasets w oficjalnych interaktywnych drukach ZUS)
-    try:
-        xfa = getattr(reader, "xfa", None)
-        if isinstance(xfa, dict):
-            datasets_xml = xfa.get("datasets") or xfa.get("form")
-            if isinstance(datasets_xml, bytes):
-                datasets_xml = datasets_xml.decode("utf-8", errors="ignore")
-            if isinstance(datasets_xml, str) and "<" in datasets_xml:
-                root = ET.fromstring(datasets_xml)
-                for elem in root.iter():
-                    txt = (elem.text or "").strip()
-                    if not txt or txt.lower() in ("0", "false", "off"):
-                        continue
-                    tag = elem.tag.split("}")[-1].strip()
-                    if tag and tag not in extracted and len(txt) <= 120:
-                        extracted[tag] = txt
-    except Exception:
-        pass
+    # 2. Pola XFA (XML datasets/form w oficjalnych interaktywnych drukach ZUS)
+    for xml_str in _read_raw_xfa_packets(reader):
+        if "<" not in xml_str:
+            continue
+        try:
+            root = ET.fromstring(xml_str)
+            xfa_entries: list[tuple[str, str]] = []
+            _walk_xfa_element(root, [], xfa_entries)
+            for path_key, txt in xfa_entries:
+                _record(path_key, txt)
+        except Exception:
+            continue
 
-    return extracted
+    return extracted, entries
 
 
 def _mask_pesel(pesel: str) -> str:
@@ -257,43 +366,161 @@ def _mask_pesel(pesel: str) -> str:
     return pesel
 
 
-def _extract_amounts_with_context(text: str, form_fields: dict[str, str]) -> tuple[list[float], bool]:
-    upper = text.upper()
+def _parse_single_amount(raw: str) -> float | None:
+    """Parsuje kwotę np. '7 500,00 zł.', '7500,50', '8 000 zł' -> float."""
+    m = re.search(r"(\d[\d\s\xa0]*(?:[,\.]\d{1,2})?)", raw)
+    if not m:
+        return None
+    token = m.group(1).replace(" ", "").replace("\xa0", "")
+    # Jeżeli występuje i kropka i przecinek (np. 7.500,50), kropka jest separatorem tysięcznym
+    if "," in token and "." in token:
+        token = token.replace(".", "").replace(",", ".")
+    else:
+        token = token.replace(",", ".")
+    try:
+        val = float(token)
+        if 500.0 <= val <= 50000.0:
+            return val
+    except ValueError:
+        return None
+    return None
+
+
+def _extract_amounts_with_context(
+    text: str,
+    field_entries: list[tuple[str, str]],
+    combined_text: str | None = None,
+) -> tuple[list[float], bool]:
+    upper = (combined_text if combined_text is not None else text).upper()
     is_net_base = bool(
-        re.search(r"PODSTAWA\s+WYMIARU\s+ZASIŁKU|PO\s+ODLICZENIU\s+13[,\.]71|PODSTAWA\s+NETTO", upper)
+        re.search(
+            r"PODSTAWA\s+WYMIARU\s+ZASIŁKU|PO\s+ODLICZENIU\s+13[,\.]71|PODSTAWA\s+NETTO|PODSTAWAWYMIARUNETTO",
+            upper,
+        )
     )
     amounts: list[float] = []
 
-    # Najpierw szukamy kwot w polach formularza (AcroForm/XFA) o nazwach kwotowych
-    for k, v in form_fields.items():
+    # 1. Najpierw szukamy kwot we WSZYSTKICH polach formularza (AcroForm/XFA) — bez nadpisywania wierszy!
+    for k, v in field_entries:
+        if re.search(r"RAZEM|SUMA|LACZN|ŁĄCZN|OGOL|OGÓŁ|TOTAL", k, re.IGNORECASE):
+            continue
         if re.search(r"KWOT|WYNAGR|PRZYCH|PODSTAW|DOCHOD|BRUTTO|NETTO", k, re.IGNORECASE):
-            cleaned = v.replace(" ", "").replace("\xa0", "").replace(",", ".")
-            try:
-                val = float(re.sub(r"[^\d.]", "", cleaned))
-                if 500.0 <= val <= 50000.0:
-                    amounts.append(val)
-            except ValueError:
-                pass
+            val = _parse_single_amount(v)
+            if val is not None:
+                amounts.append(val)
 
-    # Dodatkowo kwoty z warstwy tekstowej
+    # 2. Kwoty z warstwy tekstowej — linia po linii z pominięciem wierszy podsumowań (Razem / Suma / Łącznie)
     if not amounts:
-        matches = re.findall(r"(?<!\d)(\d{1,2}[\s\xa0]?\d{3}[,\.]\d{2})(?!\d)", text)
-        for raw in matches:
-            cleaned = raw.replace(" ", "").replace("\xa0", "").replace(",", ".")
-            try:
-                val = float(cleaned)
-                if 500.0 <= val <= 50000.0:
-                    amounts.append(val)
-            except ValueError:
+        for line in text.splitlines():
+            if re.search(r"\b(?:RAZEM|SUMA|ŁĄCZNIE|OGÓŁEM|TOTAL)\b", line, re.IGNORECASE):
                 continue
+            # Kwoty z groszami (np. 7 500,00 / 7500.50)
+            dec_matches = re.findall(r"(?<!\d)(\d{1,2}[\s\xa0]?\d{3}[,\.]\d{2})(?!\d)", line)
+            for raw in dec_matches:
+                val = _parse_single_amount(raw)
+                if val is not None:
+                    amounts.append(val)
+            # Kwoty całkowite jawnie z jednostką waluty (np. 7 500 zł, 8000 PLN)
+            if not dec_matches:
+                int_matches = re.findall(
+                    r"(?<!\d)(\d{1,2}[\s\xa0]?\d{3})(?!\s*[,\.]\d)\s*(?:zł|zl|PLN)\b",
+                    line,
+                    re.IGNORECASE,
+                )
+                for raw in int_matches:
+                    val = _parse_single_amount(raw)
+                    if val is not None:
+                        amounts.append(val)
 
     return amounts, is_net_base
+
+
+def _pick_primary_and_sort_forms(
+    detected: list[str],
+    text: str,
+    combined_text: str,
+    filename: str,
+) -> list[str]:
+    """Wybiera główny kod formularza na podstawie nagłówka, tytułu, nazwy pliku i pozycji w tekście."""
+    if len(detected) <= 1:
+        return detected
+
+    head_600 = text[:600]
+    head_400 = text[:400]
+    fn_upper = filename.upper().replace("_", " ")
+    pat_map = dict(_FORM_PATTERNS)
+
+    def _score(code: str) -> tuple[int, int]:
+        score = 0
+        for hint_code, hint_pat in _TITLE_HINTS:
+            if hint_code == code and hint_pat.search(head_600):
+                score += 200
+        pat = pat_map[code]
+        if pat.search(head_400):
+            score += 120
+        if pat.search(fn_upper):
+            score += 80
+        m = pat.search(combined_text)
+        pos = m.start() if m else 10**9
+        return (-score, pos)
+
+    return sorted(detected, key=_score)
+
+
+def _extract_applicant_name(text: str, field_entries: list[tuple[str, str]]) -> str | None:
+    # 1. Z pól formularza (preferując sekcję ubezpieczonego/wnioskodawcy, wykluczając płatnika/dziecko/rodziców)
+    skip_pat = re.compile(r"PLATNIK|PŁATNIK|MATK|DZI|OJC", re.IGNORECASE)
+    prefer_pat = re.compile(r"UBEZPIECZ|WNIOSKODAWC|PRACOWNIK", re.IGNORECASE)
+
+    def _find_field(pat: str) -> str | None:
+        regex = re.compile(pat, re.IGNORECASE)
+        preferred = [v for k, v in field_entries if regex.search(k) and prefer_pat.search(k) and not skip_pat.search(k)]
+        if preferred:
+            return preferred[0]
+        generic = [v for k, v in field_entries if regex.search(k) and not skip_pat.search(k)]
+        return generic[0] if generic else None
+
+    imie = _find_field(r"(?:^|[/_])IMI[EĘ]")
+    nazwisko = _find_field(r"(?:^|[/_])NAZWISK")
+    if imie or nazwisko:
+        return " ".join(p for p in [imie, nazwisko] if p).strip() or None
+
+    # 2. Fallback z warstwy tekstowej (np. wygenerowane wnioski ZAM / pisma formalne)
+    m_block = re.search(r"WNIOSKODAWCA\s*:\s*\n\s*([A-ZŁŚĆŻŹÓŃ][^\n]{2,80})", text)
+    if m_block:
+        candidate = m_block.group(1).strip()
+        if not candidate.upper().startswith("PESEL"):
+            return candidate
+    m_inline = re.search(r"IMI[ĘE]\s+I\s+NAZWISKO\s*:\s*([A-ZŁŚĆŻŹÓŃ][^\n]{2,80})", text, re.IGNORECASE)
+    if m_inline:
+        return m_inline.group(1).strip()
+    return None
+
+
+def _extract_pesel(combined_text: str, field_entries: list[tuple[str, str]]) -> str | None:
+    skip_pat = re.compile(r"PLATNIK|PŁATNIK|DZI|MATK|OJC", re.IGNORECASE)
+    prefer_pat = re.compile(r"UBEZPIECZ|WNIOSKODAWC|PRACOWNIK", re.IGNORECASE)
+
+    preferred = [v for k, v in field_entries if "PESEL" in k.upper() and prefer_pat.search(k) and not skip_pat.search(k)]
+    if preferred:
+        return preferred[0]
+    generic = [v for k, v in field_entries if "PESEL" in k.upper() and not skip_pat.search(k)]
+    if generic:
+        return generic[0]
+    m_pesel = re.search(r"\b(\d{11})\b", combined_text)
+    if m_pesel:
+        return m_pesel.group(1)
+    m_masked = re.search(r"PESEL\s*:\s*(\d{6}\*{5})", combined_text, re.IGNORECASE)
+    if m_masked:
+        return m_masked.group(1)
+    return None
 
 
 def analyze_pdf_bytes(filename: str, content: bytes) -> PdfAnalysisResult:
     """Uniwersalny parser oficjalnych formularzy ZUS (warstwa tekstowa + AcroForm + XFA XML + nazwa pliku)."""
     text = ""
     form_fields: dict[str, str] = {}
+    field_entries: list[tuple[str, str]] = []
     notes: list[str] = []
     ocr_required = False
 
@@ -301,13 +528,13 @@ def analyze_pdf_bytes(filename: str, content: bytes) -> PdfAnalysisResult:
         reader = PdfReader(io.BytesIO(content))
         pages_text = [(page.extract_text() or "") for page in reader.pages[:16]]
         text = "\n".join(pages_text).strip()
-        form_fields = _extract_acroform_and_xfa_fields(reader)
+        form_fields, field_entries = _extract_acroform_and_xfa_fields(reader)
     except Exception as exc:
         ocr_required = True
         notes.append(f"Nie udało się odczytać struktury pliku PDF: {exc}")
 
     # Składamy pełny korpus tekstowy: tekst + wartości pól AcroForm/XFA
-    fields_blob = "\n".join(f"{k}: {v}" for k, v in form_fields.items())
+    fields_blob = "\n".join(f"{k}: {v}" for k, v in field_entries)
     combined_text = f"{text}\n{fields_blob}".strip()
 
     if len(combined_text) < 20 and not form_fields:
@@ -319,30 +546,25 @@ def analyze_pdf_bytes(filename: str, content: bytes) -> PdfAnalysisResult:
     # Rozpoznawanie kodów formularzy ZUS (najpierw z treści + pól, potem z nazwy pliku)
     detected = [code for code, pat in _FORM_PATTERNS if pat.search(combined_text)]
     if not detected:
-        fn_upper = filename.upper().replace("_", " ").replace("-", "-")
+        fn_upper = filename.upper().replace("_", " ")
         detected = [code for code, pat in _FORM_PATTERNS if pat.search(fn_upper)]
         if detected:
             notes.append(f"Kod formularza ({', '.join(detected)}) rozpoznano pomocniczo na podstawie nazwy pliku.")
+    else:
+        detected = _pick_primary_and_sort_forms(detected, text, combined_text, filename)
 
     primary_form = detected[0] if detected else "UNKNOWN"
     form_desc = _FORM_DESCRIPTIONS.get(primary_form)
     upper = combined_text.upper()
 
-    # Wyciąganie imienia, nazwiska i PESEL-u z pól AcroForm/XFA lub tekstu
-    imie = next((v for k, v in form_fields.items() if re.search(r"IMIE|IMIĘ", k, re.IGNORECASE) and not re.search(r"MATK|DZI|OJC", k, re.IGNORECASE)), None)
-    nazwisko = next((v for k, v in form_fields.items() if re.search(r"NAZWISK", k, re.IGNORECASE) and not re.search(r"MATK|DZI|OJC", k, re.IGNORECASE)), None)
-    applicant_name = " ".join(p for p in [imie, nazwisko] if p).strip() or None
-
-    pesel_raw = next((v for k, v in form_fields.items() if "PESEL" in k.upper() and not re.search(r"DZI|MATK|OJC", k, re.IGNORECASE)), None)
-    if not pesel_raw:
-        m_pesel = re.search(r"\b(\d{11})\b", combined_text)
-        if m_pesel:
-            pesel_raw = m_pesel.group(1)
+    # Wyciąganie imienia, nazwiska i PESEL-u (preferując dane ubezpieczonego, nie płatnika)
+    applicant_name = _extract_applicant_name(text, field_entries)
+    pesel_raw = _extract_pesel(combined_text, field_entries)
     pesel_masked = _mask_pesel(pesel_raw) if pesel_raw else None
 
     # Liczba dzieci (z pól formularza, np. ERU "Urodziłam 04 dzieci" lub ZAM)
     children_count = 1
-    for k, v in form_fields.items():
+    for k, v in field_entries:
         if re.search(r"LICZB.*DZIEC|DZIECI|URODZIL", k, re.IGNORECASE):
             m_num = re.search(r"\d+", v)
             if m_num:
@@ -357,17 +579,25 @@ def analyze_pdf_bytes(filename: str, content: bytes) -> PdfAnalysisResult:
             if 1 <= val_c <= 15:
                 children_count = val_c
 
-    # Tytuł ubezpieczenia
+    # Tytuł ubezpieczenia (oparty na głównym formularzu oraz jawnej treści, bez mylenia przez listę załączników)
     suggested_title = "uop"
     if primary_form in ("ERU", "ERSU"):
         suggested_title = "none"
         notes.append(
             f"Rozpoznano formularz {primary_form} ({form_desc}). Dotyczy rodzicielskiego świadczenia uzupełniającego (Mama 4+), a nie zasiłku macierzyńskiego z ubezpieczenia chorobowego."
         )
-    elif "Z-3A" in detected or re.search(r"\bZLECENI[AE]|UMOW[AY]\s+ZLECEN", upper):
+    elif primary_form == "Z-3A":
         suggested_title = "zlecenie"
-    elif "ZAS-53" in detected or re.search(r"DZIAŁALNOŚC[IĄ]\s+GOSPODARCZ|POZAROLNICZ", upper):
+    elif primary_form == "Z-3":
+        suggested_title = "uop"
+    elif re.search(r"UMOW[AY]\s+O\s+PRAC[ĘE]", upper):
+        suggested_title = "uop"
+    elif re.search(r"UMOW[AY]\s+ZLECEN", upper):
+        suggested_title = "zlecenie"
+    elif re.search(r"DZIAŁALNOŚC[IĄ]\s+GOSPODARCZ|POZAROLNICZ", upper) or primary_form == "ZAS-53":
         suggested_title = "jdg"
+    elif "Z-3A" in detected and primary_form != "ZAM":
+        suggested_title = "zlecenie"
 
     # Daty i okresy
     periods = list(dict.fromkeys(re.findall(r"\b\d{2}[.\-/]\d{2}[.\-/]\d{4}\b|\b\d{4}-\d{2}-\d{2}\b", combined_text)))[:10]
@@ -380,7 +610,10 @@ def analyze_pdf_bytes(filename: str, content: bytes) -> PdfAnalysisResult:
 
     # Ostrożna weryfikacja statusu ubezpieczenia
     has_explicit_denial = bool(
-        re.search(r"NIE\s+PODLEGA|BRAK\s+UBEZPIECZENIA\s+CHOROBOWEGO|ODMOWA\s+PRAWA|WYŁĄCZON[YA]\s+Z\s+UBEZPIECZENIA", upper)
+        re.search(
+            r"NIE\s+PODLEGA|BRAK\s+UBEZPIECZENIA\s+CHOROBOWEGO|ODMOWA\s+PRAWA|WYŁĄCZON[YA]\s+Z\s+UBEZPIECZENIA|UBEZPIECZENIE\s+CHOROBOWE\s*:\s*NIE",
+            upper,
+        )
     )
     has_explicit_confirmation = bool(
         re.search(
@@ -418,7 +651,7 @@ def analyze_pdf_bytes(filename: str, content: bytes) -> PdfAnalysisResult:
     # Kwoty — używamy stopy z ParameterStore (bez zahardkodowanego 0.1371)
     params = parameter_store.get()
     rate = params.employee_social_security_rate
-    parsed_amounts, amount_is_net_base = _extract_amounts_with_context(combined_text, form_fields)
+    parsed_amounts, amount_is_net_base = _extract_amounts_with_context(text, field_entries, combined_text)
 
     suggested_salary: float | None = None
     suggested_custom_base: float | None = None

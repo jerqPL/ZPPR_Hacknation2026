@@ -135,7 +135,7 @@ class IntegratedCalculatorRequest(BaseModel):
     second_parent_has_sickness_insurance: bool = True
     single_parent_or_no_second_parent: bool = False
 
-    children_count: int = Field(1, ge=1, le=6)
+    children_count: int = Field(1, ge=1, le=15)
     child_age_years: Optional[float] = Field(None, ge=0, le=18)
     foster_family_type: FosterFamilyType = FosterFamilyType.NON_PROFESSIONAL
     foster_deferred_school: bool = False

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { PageHeader } from "@/components/PageHeader";
 import { InfoTooltip } from "@/components/InfoTooltip";
 import { useUser } from "@/components/UserContext";
@@ -11,6 +11,7 @@ import type {
   IndividualBaseCalculationResponse,
   InsuranceTitle,
   IntegratedCalculatorResponse,
+  LegalParameters,
   PaymentVariant,
   SampleCase,
 } from "@/lib/types";
@@ -25,9 +26,11 @@ const MATERNITY_WEEKS_BY_CHILDREN: Record<number, number> = {
 };
 
 function parsePolishSalaryList(input: string): number[] {
-  // Obsługuje formaty: "7 500,50; 8 000,00", "7 500,50, 8 000,00", "7500, 8000", "800, 900" oraz nowe linie
+  // Obsługuje formaty: "7 500,50 zł; 8 000,00 zł", "7.500,50; 8.000,00", "7 500,50, 8 000,00", "8 000, 8 500" oraz nowe linie
   const normalized = input
     .replace(/\u00A0/g, " ")
+    .replace(/(?:zł|zl|pln)\.?/gi, "")
+    .replace(/(\d)\.(\d{3})(?=\D|$)/g, "$1$2")
     .replace(/(\d),(\d{1,2})(?=\s*(?:[,;\n]|$))/g, "$1.$2");
   return normalized
     .split(/[;\n,]+/)
@@ -39,6 +42,10 @@ function parsePolishSalaryList(input: string): number[] {
 
 export default function IntegratedCalculatorPage() {
   const { user } = useUser();
+
+  const [legalParams, setLegalParams] = useState<LegalParameters | null>(null);
+  const prefillAppliedRef = useRef(false);
+  const prevUserIdRef = useRef<string | null>(user?.id ?? null);
 
   // Lista przykładowych spraw z zestawów ZUS (pkt f)
   const [sampleCases, setSampleCases] = useState<SampleCase[]>([]);
@@ -131,8 +138,32 @@ export default function IntegratedCalculatorPage() {
 
   const parsedCreatorSalaries = parsePolishSalaryList(creatorSalariesText);
 
+  const minWage = legalParams?.minimum_wage_gross ?? 4806;
+  const debtThresholdStr = (minWage * (legalParams?.debt_threshold_min_wage_fraction ?? 0.01))
+    .toFixed(2)
+    .replace(".", ",");
+  const minMonthlyFloorStr = (legalParams?.parental_benefit_minimum_monthly ?? 1000)
+    .toFixed(2)
+    .replace(".", ",");
+  const jdgPrefMin = legalParams?.jdg_preferential_min_base_gross ?? 1441.8;
+  const jdgStdMin = legalParams?.jdg_standard_min_base_gross ?? 5652;
+  const deadlineDays = legalParams?.combined_application_deadline_days ?? 21;
+  const combinedRate = legalParams?.combined_21_days_rate ?? 0.815;
+  const matStdRate = legalParams?.maternity_rate_standard ?? 1.0;
+  const combinedRateStr = `${(combinedRate * 100).toFixed(1).replace(".", ",")}%`;
+  const eqDiffPpStr = `+${((matStdRate - combinedRate) * 100).toFixed(1).replace(".", ",")} p.p.`;
+  const paramsYear = legalParams?.year ?? 2026;
+
   useEffect(() => {
     api.getSampleCases().then(setSampleCases).catch(() => setSampleCases([]));
+    api
+      .getParameters()
+      .then((p) => {
+        setLegalParams(p);
+        setCreatorJdgDeclared(p.voluntary_sickness_max_monthly_gross);
+        setCreatorJdgMin(p.jdg_standard_min_base_gross);
+      })
+      .catch(() => setLegalParams(null));
   }, []);
 
   // Automatyczne wczytanie danych przekazanych ze strony /sprawy-pdf
@@ -140,12 +171,13 @@ export default function IntegratedCalculatorPage() {
     const raw = sessionStorage.getItem("zppr-prefill-calculator");
     if (!raw) return;
     sessionStorage.removeItem("zppr-prefill-calculator");
+    prefillAppliedRef.current = true;
     try {
       const data = JSON.parse(raw) as Record<string, unknown>;
       const sc = (data.scenario as BenefitScenario) || "birth";
       const insTitle = (data.insurance_title as InsuranceTitle) || "uop";
       const insured = Boolean(data.has_sickness_insurance_on_birth_date ?? true);
-      const kids = Number(data.children_count ?? 1);
+      const kids = Math.min(15, Math.max(1, Number(data.children_count ?? 1)));
       const gross = Number(data.gross_monthly_salary ?? 7000);
       const custom1 = data.custom_benefit_base ? Number(data.custom_benefit_base) : null;
       const custom2 = data.second_parent_custom_base ? Number(data.second_parent_custom_base) : null;
@@ -166,6 +198,7 @@ export default function IntegratedCalculatorPage() {
       setInsuranceTitle(insTitle);
       setInsuredOnDate(insured);
       setFteFraction(1.0);
+      setCreatorFte(1.0);
       setSingleParent(false);
       setSecondParentInsuredClaim(false);
       setSecondParentInsuranceTitle("uop");
@@ -232,7 +265,14 @@ export default function IntegratedCalculatorPage() {
   }, []);
 
   useEffect(() => {
+    const nextId = user?.id ?? null;
+    // Nie nadpisuj danych wczytanych z /sprawy-pdf podczas początkowego montowania dla zalogowanej persony
+    if (prefillAppliedRef.current && nextId === prevUserIdRef.current) {
+      return;
+    }
+    prevUserIdRef.current = nextId;
     if (user) {
+      prefillAppliedRef.current = false;
       setInsuranceTitle(user.insurance_title);
       setInsuredOnDate(user.has_sickness_insurance);
       setGrossSalary(user.declared_gross_salary);
@@ -249,7 +289,7 @@ export default function IntegratedCalculatorPage() {
       setPrevFosterParWeeks(0);
       setFosterDeferred(false);
       setFosterFamilyType("non_professional");
-      setMotherMaternityWeeks(MATERNITY_WEEKS_BY_CHILDREN[childrenCount] || 20);
+      setMotherMaternityWeeks(MATERNITY_WEEKS_BY_CHILDREN[Math.min(childrenCount, 5)] || 20);
     } else {
       setStillbirthOrEarlyDeath(false);
       setMotherEarlyTransfer8Weeks(false);
@@ -258,18 +298,18 @@ export default function IntegratedCalculatorPage() {
         setFatherPaternity(false);
       }
       setMotherMaternityWeeks(
-        adoptionShort9Weeks ? 9 : MATERNITY_WEEKS_BY_CHILDREN[childrenCount] || 20
+        adoptionShort9Weeks ? 9 : MATERNITY_WEEKS_BY_CHILDREN[Math.min(childrenCount, 5)] || 20
       );
     }
   };
 
   const handleChildrenCountChange = (newCount: number) => {
-    const clamped = Math.max(1, Math.min(6, newCount));
+    const clamped = Math.max(1, Math.min(15, newCount));
     setChildrenCount(clamped);
     if (scenario !== "birth" && adoptionShort9Weeks) {
       setMotherMaternityWeeks(9);
     } else {
-      setMotherMaternityWeeks(MATERNITY_WEEKS_BY_CHILDREN[clamped] || 20);
+      setMotherMaternityWeeks(MATERNITY_WEEKS_BY_CHILDREN[Math.min(clamped, 5)] || 20);
     }
   };
 
@@ -405,6 +445,9 @@ export default function IntegratedCalculatorPage() {
       });
       setBaseCalcResult(res);
       setCustomBase1(String(res.computed_base_monthly));
+      if (insuranceTitle === "uop" && creatorSubMode === "uop_12m") {
+        setFteFraction(Math.max(0.1, Math.min(1.0, Number(creatorFte) || 1.0)));
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Błąd wyliczania indywidualnej podstawy");
     }
@@ -760,7 +803,7 @@ export default function IntegratedCalculatorPage() {
               <input
                 type="number"
                 min={1}
-                max={6}
+                max={15}
                 value={childrenCount}
                 onChange={(e) => handleChildrenCountChange(Number(e.target.value))}
                 className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700"
@@ -773,7 +816,7 @@ export default function IntegratedCalculatorPage() {
               <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                 <InfoTooltip
                   label="Wymiar etatu Rodzica 1 (art. 45 ustawy zasiłkowej)"
-                  tooltip="Dla pracownika na część etatu minimalna podstawa wymiaru zasiłku (4 806 zł − 13,71%) ulega proporcjonalnemu zmniejszeniu do wymiaru etatu."
+                  tooltip={`Dla pracownika na część etatu minimalna podstawa wymiaru zasiłku (${minWage.toLocaleString("pl-PL")} zł − 13,71%) ulega proporcjonalnemu zmniejszeniu do wymiaru etatu.`}
                 />
               </label>
               <input
@@ -782,7 +825,11 @@ export default function IntegratedCalculatorPage() {
                 max={1.0}
                 step="any"
                 value={fteFraction}
-                onChange={(e) => setFteFraction(Number(e.target.value))}
+                onChange={(e) => {
+                  const v = Number(e.target.value);
+                  setFteFraction(v);
+                  setCreatorFte(v);
+                }}
                 className="w-24 rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm dark:border-slate-700"
               />
             </div>
@@ -1229,11 +1276,11 @@ export default function IntegratedCalculatorPage() {
                         onChange={(e) => {
                           const checked = e.target.checked;
                           setCreatorJdgPreferential(checked);
-                          setCreatorJdgMin(checked ? 1441.8 : 5652);
+                          setCreatorJdgMin(checked ? jdgPrefMin : jdgStdMin);
                         }}
                         className="h-3.5 w-3.5 shrink-0 accent-[#007834]"
                       />
-                      Preferencyjny ZUS — 30% płacy minimalnej (1 441,80 zł zamiast 5 652,00 zł w 2026 r.)
+                      Preferencyjny ZUS — 30% płacy minimalnej ({jdgPrefMin.toFixed(2).replace(".", ",")} zł zamiast {jdgStdMin.toFixed(2).replace(".", ",")} zł w {paramsYear} r.)
                     </label>
                   </div>
                 )}
@@ -1266,7 +1313,7 @@ export default function IntegratedCalculatorPage() {
                   <div className="rounded bg-[#e6f4ec] p-2.5 text-[11px] text-[#005a27] dark:bg-[#007834]/20 dark:text-emerald-300">
                     <p className="font-bold">
                       Wyliczona podstawa: {baseCalcResult.computed_base_monthly.toFixed(2)} zł (stawka
-                      dzienna 100%: {baseCalcResult.daily_rate_100_percent.toFixed(2)} zł | 81,5%:{" "}
+                      dzienna 100%: {baseCalcResult.daily_rate_100_percent.toFixed(2)} zł | {combinedRateStr}:{" "}
                       {baseCalcResult.daily_rate_81_5_percent.toFixed(2)} zł | 70%:{" "}
                       {baseCalcResult.daily_rate_70_percent.toFixed(2)} zł)
                     </p>
@@ -1293,7 +1340,7 @@ export default function IntegratedCalculatorPage() {
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
                 <InfoTooltip
                   label="Wariant wypłaty"
-                  tooltip="81,5% przez cały okres wymaga złożenia jednego wniosku w ciągu 21 dni od porodu/przyjęcia dziecka. Wariant 100% + 70% oznacza 100% na macierzyńskim i 70% na rodzicielskim."
+                  tooltip={`${combinedRateStr} przez cały okres wymaga złożenia jednego wniosku w ciągu ${deadlineDays} dni od porodu/przyjęcia dziecka. Wariant 100% + 70% oznacza 100% na macierzyńskim i 70% na rodzicielskim.`}
                 />
               </label>
               <select
@@ -1301,7 +1348,9 @@ export default function IntegratedCalculatorPage() {
                 onChange={(e) => setPaymentVariant(e.target.value as PaymentVariant)}
                 className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700"
               >
-                <option value="81_5">81,5% (wniosek w 21 dni)</option>
+                <option value="81_5">
+                  {combinedRateStr} (wniosek w {deadlineDays} dni)
+                </option>
                 <option value="100_70">100% macierzyński + 70% rodzicielski</option>
               </select>
             </div>
@@ -1310,7 +1359,7 @@ export default function IntegratedCalculatorPage() {
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
                   <InfoTooltip
                     label="Ubezpieczeni u płatnika (Rodzic 1)"
-                    tooltip="Liczba osób zgłoszonych do ubezpieczenia chorobowego przez Twojego pracodawcę/zleceniodawcę na dzień 30 listopada poprzedniego roku. Powyżej 20 osób zasiłek wypłaca płatnik składek, do 20 osób — ZUS."
+                    tooltip={`Liczba osób zgłoszonych do ubezpieczenia chorobowego przez Twojego pracodawcę/zleceniodawcę na dzień 30 listopada poprzedniego roku. Powyżej ${legalParams?.payer_employee_threshold ?? 20} osób zasiłek wypłaca płatnik składek, do ${legalParams?.payer_employee_threshold ?? 20} osób — ZUS.`}
                   />
                 </label>
                 <input
@@ -1329,7 +1378,7 @@ export default function IntegratedCalculatorPage() {
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
                 <InfoTooltip
                   label="Zaległość składkowa ZUS na JDG — Rodzic 1 (zł, art. 2a)"
-                  tooltip="Dla osób prowadzących działalność gospodarczą zadłużenie z tytułu składek przekraczające 1% minimalnego wynagrodzenia (48,06 zł w 2026 r.) wstrzymuje wypłatę zasiłku do czasu uregulowania zaległości (max 6 mies. na spłatę)."
+                  tooltip={`Dla osób prowadzących działalność gospodarczą zadłużenie z tytułu składek przekraczające 1% minimalnego wynagrodzenia (${debtThresholdStr} zł w ${paramsYear} r.) wstrzymuje wypłatę zasiłku do czasu uregulowania zaległości (max ${legalParams?.claim_limitation_months ?? 6} mies. na spłatę).`}
                 />
               </label>
               <input
@@ -1357,19 +1406,25 @@ export default function IntegratedCalculatorPage() {
                   <InfoTooltip
                     label={
                       scenario === "birth"
-                        ? `Macierzyński matki (min. ${motherEarlyTransfer8Weeks ? 8 : 14} tyg.)`
+                        ? `Macierzyński matki (min. ${stillbirthOrEarlyDeath || motherEarlyTransfer8Weeks ? 8 : 14} tyg.)`
                         : "Urlop na warunkach macierzyńskiego — Rodzic 1 (tyg.)"
                     }
                     tooltip={
                       scenario === "birth"
-                        ? "Pierwsze 14 tygodni po porodzie (lub 8 tygodni w razie hospitalizacji/niezdolności matki) matka wykorzystuje osobiście. Pozostałą część może przejąć ojciec."
+                        ? "Pierwsze 14 tygodni po porodzie (lub 8 tygodni w razie hospitalizacji/niezdolności matki bądź urodzenia martwego dziecka) matka wykorzystuje osobiście. Pozostałą część może przejąć ojciec."
                         : "Liczba tygodni urlopu na warunkach urlopu macierzyńskiego wykorzystana przez pierwszego rodzica adopcyjnego/zastępczego."
                     }
                   />
                 </label>
                 <input
                   type="number"
-                  min={scenario === "birth" ? (motherEarlyTransfer8Weeks ? 8 : 14) : 0}
+                  min={
+                    scenario === "birth"
+                      ? stillbirthOrEarlyDeath || motherEarlyTransfer8Weeks
+                        ? 8
+                        : 14
+                      : 0
+                  }
                   max={37}
                   value={motherMaternityWeeks}
                   onChange={(e) => setMotherMaternityWeeks(Number(e.target.value))}
@@ -1786,15 +1841,15 @@ export default function IntegratedCalculatorPage() {
                     <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs font-medium text-amber-900 dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-200">
                       <strong>Wstrzymanie wypłaty zasiłku (art. 2a ustawy zasiłkowej):</strong>{" "}
                       wykryto zadłużenie składkowe ZUS na JDG przekraczające 1% płacy minimalnej
-                      (48,06 zł). Prawo do świadczenia istnieje, jednak wypłata nastąpi dopiero po
-                      uregulowaniu zaległości (w ciągu 6 miesięcy od powstania prawa).
+                      ({debtThresholdStr} zł). Prawo do świadczenia istnieje, jednak wypłata nastąpi
+                      dopiero po uregulowaniu zaległości (w ciągu {legalParams?.claim_limitation_months ?? 6} miesięcy od powstania prawa).
                     </div>
                   )}
 
                   {result.minimum_benefit_top_up_applied && (
                     <div className="mt-3 rounded-lg border border-emerald-300 bg-emerald-50 p-3 text-xs font-medium text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200">
                       Zastosowano ustawowe podwyższenie zasiłku macierzyńskiego do kwoty świadczenia
-                      rodzicielskiego (min. 1 000,00 zł miesięcznie — art. 31 ust. 3a ustawy
+                      rodzicielskiego (min. {minMonthlyFloorStr} zł miesięcznie — art. 31 ust. 3a ustawy
                       zasiłkowej).
                     </div>
                   )}
@@ -1804,7 +1859,7 @@ export default function IntegratedCalculatorPage() {
                       <strong>Jednorazowe wyrównanie do 100% (art. 31 ust. 4 ustawy zasiłkowej):</strong>{" "}
                       +{result.equalization_to_100_pln.toFixed(2)} zł brutto za okres urlopu
                       macierzyńskiego (niewykorzystanie ani jednego dnia zasiłku za urlop
-                      rodzicielski w wariancie 81,5%). Kwota została doliczona do łącznej sumy.
+                      rodzicielski w wariancie {combinedRateStr}). Kwota została doliczona do łącznej sumy.
                     </div>
                   )}
 
@@ -1885,7 +1940,7 @@ export default function IntegratedCalculatorPage() {
                               Rodzic 1 / Rodzic 2
                             </td>
                             <td className="p-2.5 text-right font-semibold">—</td>
-                            <td className="p-2.5 text-right">+18,5 p.p.</td>
+                            <td className="p-2.5 text-right">{eqDiffPpStr}</td>
                             <td className="p-2.5 text-right">—</td>
                             <td className="p-2.5 text-right font-bold text-[#005a27] dark:text-emerald-300">
                               +{result.equalization_to_100_pln.toFixed(2)} zł
