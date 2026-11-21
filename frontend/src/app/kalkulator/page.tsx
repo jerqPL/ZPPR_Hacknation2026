@@ -658,14 +658,25 @@ export default function IntegratedCalculatorPage() {
       <PageHeader
         badge="Zintegrowany Kalkulator"
         title="Zintegrowany Kalkulator Świadczeń w Ciąży i po Narodzinach Dziecka"
-        description="Jedno narzędzie łączące wszystkie kalkulatory: okres ciąży (chorobowy kod B, rehabilitacyjny, art. 30), poród, podział opieki między oboje rodziców, łączenie urlopu rodzicielskiego z pracą, adopcję, rodzinę zastępczą oraz indywidualną podstawę wymiaru zasiłku."
+        description="Jedno narzędzie łączące wszystkie kalkulatory: okres ciąży (zasiłek chorobowy kod B, świadczenie rehabilitacyjne, zasiłek w wys. macierzyńskiego), poród, podział opieki między oboje rodziców, łączenie urlopu rodzicielskiego z pracą, adopcję, rodzinę zastępczą oraz indywidualną podstawę wymiaru zasiłku."
       />
 
       {/* Przełącznik modułów zintegrowanego kalkulatora (pkt a–f, j) */}
-      <div className="mb-6 flex flex-wrap gap-2">
+      <div
+        role="tablist"
+        aria-label="Moduły zintegrowanego kalkulatora"
+        className="mb-6 flex flex-wrap gap-2"
+      >
         <button
           type="button"
-          onClick={() => setCalculatorMode("maternity")}
+          role="tab"
+          aria-selected={calculatorMode === "maternity"}
+          onClick={() => {
+            setCalculatorMode("maternity");
+            const url = new URL(window.location.href);
+            url.searchParams.delete("mode");
+            window.history.replaceState({}, "", url.toString());
+          }}
           className={`rounded-xl border px-4 py-2.5 text-xs font-bold transition ${
             calculatorMode === "maternity"
               ? "border-[#007834] bg-[#007834] text-white shadow-xs"
@@ -676,14 +687,21 @@ export default function IntegratedCalculatorPage() {
         </button>
         <button
           type="button"
-          onClick={() => setCalculatorMode("pregnancy")}
+          role="tab"
+          aria-selected={calculatorMode === "pregnancy"}
+          onClick={() => {
+            setCalculatorMode("pregnancy");
+            const url = new URL(window.location.href);
+            url.searchParams.set("mode", "pregnancy");
+            window.history.replaceState({}, "", url.toString());
+          }}
           className={`rounded-xl border px-4 py-2.5 text-xs font-bold transition ${
             calculatorMode === "pregnancy"
               ? "border-[#007834] bg-[#007834] text-white shadow-xs"
               : "border-slate-200 bg-white text-slate-700 hover:border-[#007834]/50 dark:border-emerald-950 dark:bg-[#111c17] dark:text-slate-300"
           }`}
         >
-          Świadczenia w czasie ciąży (chorobowy, rehabilitacyjny, art. 30)
+          Świadczenia w czasie ciąży (chorobowy, rehabilitacyjny, w wys. macierzyńskiego)
         </button>
       </div>
 

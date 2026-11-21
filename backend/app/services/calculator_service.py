@@ -680,7 +680,7 @@ def calculate_pregnancy_benefit(
         and req.gross_monthly_salary > params.jdg_standard_min_base_gross
     ):
         warnings.append(
-            f"Uwaga dla JDG (art. 48a ustawy zasiłkowej): Przy stażu dobrowolnego ubezpieczenia chorobowego krótszym niż 12 pełnych miesięcy kalendarzowych ({req.insurance_days} dni) i podstawie wyższej niż minimalna ({params.jdg_standard_min_base_gross:.2f} zł brutto), ZUS obliczy podstawę proporcjonalnie (najniższa podstawa + 1/12 nadwyżki za każdy pełny miesiąc). Użyj Kreatora podstawy w zakładce Kalkulator i wpisz wynik jako indywidualną podstawę."
+            f"Uwaga dla JDG (art. 48a ustawy zasiłkowej): Przy stażu dobrowolnego ubezpieczenia chorobowego krótszym niż 12 pełnych miesięcy kalendarzowych ({req.insurance_days} dni) i podstawie wyższej niż minimalna ({params.jdg_standard_min_base_gross:.2f} zł brutto), ZUS obliczy podstawę proporcjonalnie (najniższa podstawa + 1/12 nadwyżki za każdy pełny miesiąc). Użyj Kalkulatora podstawy w zakładce „Macierzyński, rodzicielski...” i wpisz wynik jako indywidualną podstawę."
         )
     elif (
         req.insurance_title == InsuranceTitle.JDG

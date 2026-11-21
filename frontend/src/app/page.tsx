@@ -22,7 +22,7 @@ const MODULES = [
   {
     href: "/kalkulator",
     title: "Zintegrowany Kalkulator Zasiłkowy",
-    desc: "Wszystkie kalkulatory w jednym miejscu: ciąża (chorobowy kod B, rehabilitacyjny, art. 30), macierzyński, uzupełniający, rodzicielski („Za życiem”), ojcowski, podział opieki, łączenie z pracą, adopcja i rodzina zastępcza.",
+    desc: "Wszystkie kalkulatory w jednym miejscu: ciąża (chorobowy kod B, rehabilitacyjny, w wys. macierzyńskiego), macierzyński, uzupełniający, rodzicielski („Za życiem”), ojcowski, podział opieki, łączenie z pracą, adopcja i rodzina zastępcza.",
     icon: Calculator,
     tag: "Ciąża i Rodzicielstwo",
   },
