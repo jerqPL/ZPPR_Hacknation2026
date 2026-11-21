@@ -110,7 +110,7 @@ export default function PregnancyPage() {
                 type="checkbox"
                 checked={hasVoluntary}
                 onChange={(e) => setHasVoluntary(e.target.checked)}
-                className="h-4 w-4 accent-[#007834]"
+                className="h-4 w-4 shrink-0 accent-[#007834]"
               />
               Podlegam dobrowolnemu ubezpieczeniu chorobowemu
             </label>
@@ -142,7 +142,7 @@ export default function PregnancyPage() {
               <input
                 type="number"
                 min={0}
-                step={100}
+                step="any"
                 value={grossSalary}
                 onChange={(e) => setGrossSalary(Number(e.target.value))}
                 className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
@@ -155,7 +155,7 @@ export default function PregnancyPage() {
               type="checkbox"
               checked={waitingExempt}
               onChange={(e) => setWaitingExempt(e.target.checked)}
-              className="h-4 w-4 accent-[#007834]"
+              className="h-4 w-4 shrink-0 accent-[#007834]"
             />
             <InfoTooltip
               label="Zwolnienie z okresu wyczekiwania (art. 4 ust. 3 ustawy zasiłkowej)"
@@ -169,7 +169,7 @@ export default function PregnancyPage() {
                 type="checkbox"
                 checked={ageOver50}
                 onChange={(e) => setAgeOver50(e.target.checked)}
-                className="h-4 w-4 accent-[#007834]"
+                className="h-4 w-4 shrink-0 accent-[#007834]"
               />
               <InfoTooltip
                 label="Ukończony 50. rok życia (14 dni wynagrodzenia chorobowego zamiast 33 dni)"
@@ -188,7 +188,7 @@ export default function PregnancyPage() {
             <input
               type="number"
               min={0}
-              step={0.01}
+              step="any"
               placeholder="Pozostaw puste, aby wyliczyć automatycznie z kwoty brutto"
               value={customBase}
               onChange={(e) => setCustomBase(e.target.value)}
@@ -221,7 +221,7 @@ export default function PregnancyPage() {
                 <input
                   type="number"
                   min={0}
-                  step={10}
+                  step="any"
                   value={contributionDebt}
                   onChange={(e) => setContributionDebt(Number(e.target.value))}
                   className="mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
@@ -235,7 +235,7 @@ export default function PregnancyPage() {
               type="checkbox"
               checked={hasCodeB}
               onChange={(e) => setHasCodeB(e.target.checked)}
-              className="h-4 w-4 accent-[#007834]"
+              className="h-4 w-4 shrink-0 accent-[#007834]"
             />
             Zaświadczenie lekarskie e-ZLA zawiera kod literowy „B” (ciąża = 100%)
           </label>
@@ -246,7 +246,7 @@ export default function PregnancyPage() {
                 type="checkbox"
                 checked={specialTermination}
                 onChange={(e) => setSpecialTermination(e.target.checked)}
-                className="h-4 w-4 accent-[#007834]"
+                className="h-4 w-4 shrink-0 accent-[#007834]"
               />
               <InfoTooltip
                 label="Szczególna sytuacja: utrata zatrudnienia w ciąży (zasiłek w wys. macierzyńskiego)"

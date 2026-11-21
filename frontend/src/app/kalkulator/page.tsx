@@ -102,6 +102,91 @@ export default function IntegratedCalculatorPage() {
     api.getSampleCases().then(setSampleCases).catch(() => setSampleCases([]));
   }, []);
 
+  // Automatyczne wczytanie danych przekazanych ze strony /sprawy-pdf
+  useEffect(() => {
+    const raw = sessionStorage.getItem("zppr-prefill-calculator");
+    if (!raw) return;
+    sessionStorage.removeItem("zppr-prefill-calculator");
+    try {
+      const data = JSON.parse(raw) as Record<string, unknown>;
+      const sc = (data.scenario as BenefitScenario) || "birth";
+      const insTitle = (data.insurance_title as InsuranceTitle) || "uop";
+      const insured = Boolean(data.has_sickness_insurance_on_birth_date ?? true);
+      const kids = Number(data.children_count ?? 1);
+      const gross = Number(data.gross_monthly_salary ?? 7000);
+      const custom1 = data.custom_benefit_base ? Number(data.custom_benefit_base) : null;
+      const custom2 = data.second_parent_custom_base ? Number(data.second_parent_custom_base) : null;
+      const variant = (data.payment_variant as PaymentVariant) || "81_5";
+      const empCount = Number(data.employer_insured_count ?? 25);
+      const defaultMat = MATERNITY_WEEKS_BY_CHILDREN[Math.min(kids, 5)] || 20;
+      const matWeeks =
+        data.mother_maternity_weeks !== undefined && data.mother_maternity_weeks !== null
+          ? Number(data.mother_maternity_weeks)
+          : defaultMat;
+      const fatherPar = Number(data.father_takes_parental_weeks ?? 0);
+      const fatherPat = Boolean(data.father_takes_paternity_leave ?? false);
+
+      setScenario(sc);
+      setInsuranceTitle(insTitle);
+      setInsuredOnDate(insured);
+      setChildrenCount(kids);
+      if (data.child_age_years !== undefined && data.child_age_years !== null) {
+        setChildAgeYears(Number(data.child_age_years));
+      }
+      setFosterFamilyType((data.foster_family_type as FosterFamilyType) || "non_professional");
+      setFosterDeferred(Boolean(data.foster_deferred_school));
+      setHasZaZyciem(Boolean(data.has_za_zyciem_certificate));
+      setGrossSalary(gross);
+      if (custom1) {
+        setBaseMode("custom");
+        setCustomBase1(String(custom1));
+      } else {
+        setBaseMode("standard");
+        setCustomBase1("");
+      }
+      if (data.second_parent_gross_salary) {
+        setSecondParentGross(Number(data.second_parent_gross_salary));
+      }
+      setCustomBase2(custom2 ? String(custom2) : "");
+      setPaymentVariant(variant);
+      setEmployerCount(empCount);
+      setMotherMaternityWeeks(matWeeks);
+      setFatherParentalWeeks(fatherPar);
+      setFatherPaternity(fatherPat);
+      setPremature(false);
+      setCombineWork(false);
+
+      setLoading(true);
+      api
+        .calculateIntegrated({
+          scenario: sc,
+          insurance_title: insTitle,
+          has_sickness_insurance_on_birth_date: insured,
+          children_count: kids,
+          child_age_years: sc === "birth" ? null : Number(data.child_age_years ?? 3),
+          foster_family_type: (data.foster_family_type as FosterFamilyType) || "non_professional",
+          foster_deferred_school: Boolean(data.foster_deferred_school),
+          has_za_zyciem_certificate: Boolean(data.has_za_zyciem_certificate),
+          gross_monthly_salary: gross,
+          custom_benefit_base: custom1,
+          second_parent_gross_salary: data.second_parent_gross_salary
+            ? Number(data.second_parent_gross_salary)
+            : 8000,
+          second_parent_custom_base: custom2,
+          payment_variant: variant,
+          mother_maternity_weeks: matWeeks,
+          father_takes_parental_weeks: fatherPar,
+          father_takes_paternity_leave: fatherPat,
+          employer_insured_count: empCount,
+        })
+        .then(setResult)
+        .catch((err) => setError(err instanceof Error ? err.message : "Błąd wyliczeń API"))
+        .finally(() => setLoading(false));
+    } catch {
+      // ignore invalid prefill JSON
+    }
+  }, []);
+
   useEffect(() => {
     if (user) {
       setInsuranceTitle(user.insurance_title);
@@ -454,7 +539,7 @@ export default function IntegratedCalculatorPage() {
                     type="number"
                     min={0}
                     max={18}
-                    step={0.1}
+                    step="any"
                     value={childAgeYears}
                     onChange={(e) => setChildAgeYears(Number(e.target.value))}
                     className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm dark:border-slate-700 dark:bg-[#111c17]"
@@ -466,7 +551,7 @@ export default function IntegratedCalculatorPage() {
                       type="checkbox"
                       checked={fosterDeferred}
                       onChange={(e) => setFosterDeferred(e.target.checked)}
-                      className="h-4 w-4 accent-[#007834]"
+                      className="h-4 w-4 shrink-0 accent-[#007834]"
                     />
                     <InfoTooltip
                       label="Odroczenie obowiązku szkolnego (do 10 lat)"
@@ -487,7 +572,7 @@ export default function IntegratedCalculatorPage() {
                       checked ? 9 : MATERNITY_WEEKS_BY_CHILDREN[childrenCount] || 20
                     );
                   }}
-                  className="h-4 w-4 accent-[#007834]"
+                  className="h-4 w-4 shrink-0 accent-[#007834]"
                 />
                 <InfoTooltip
                   label="Tryb minimalny z art. 183 § 3 KP (9 tyg. + 38/62 tyg. rodzicielskiego)"
@@ -577,7 +662,7 @@ export default function IntegratedCalculatorPage() {
               type="checkbox"
               checked={insuredOnDate}
               onChange={(e) => setInsuredOnDate(e.target.checked)}
-              className="h-4 w-4 accent-[#007834]"
+              className="h-4 w-4 shrink-0 accent-[#007834]"
             />
             <InfoTooltip
               label="Podleganie ubezpieczeniu chorobowemu na dzień porodu / przyjęcia dziecka"
@@ -592,7 +677,7 @@ export default function IntegratedCalculatorPage() {
                   type="checkbox"
                   checked={secondParentInsuredClaim}
                   onChange={(e) => setSecondParentInsuredClaim(e.target.checked)}
-                  className="h-4 w-4 accent-[#007834]"
+                  className="h-4 w-4 shrink-0 accent-[#007834]"
                 />
                 <InfoTooltip
                   label="Matka nieubezpieczona — oblicz uprawnienia ubezpieczonego ojca (art. 31 ust. 3h)"
@@ -644,7 +729,7 @@ export default function IntegratedCalculatorPage() {
                 <input
                   type="number"
                   min={0}
-                  step={100}
+                  step="any"
                   value={grossSalary}
                   onChange={(e) => setGrossSalary(Number(e.target.value))}
                   className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm dark:border-slate-700 dark:bg-[#111c17]"
@@ -660,7 +745,7 @@ export default function IntegratedCalculatorPage() {
                 <input
                   type="number"
                   min={0}
-                  step={100}
+                  step="any"
                   value={secondParentGross}
                   onChange={(e) => setSecondParentGross(Number(e.target.value))}
                   className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm dark:border-slate-700 dark:bg-[#111c17]"
@@ -680,7 +765,7 @@ export default function IntegratedCalculatorPage() {
                   <input
                     type="number"
                     min={0}
-                    step={0.01}
+                    step="any"
                     placeholder="np. 6903.20"
                     value={customBase1}
                     onChange={(e) => setCustomBase1(e.target.value)}
@@ -697,7 +782,7 @@ export default function IntegratedCalculatorPage() {
                   <input
                     type="number"
                     min={0}
-                    step={0.01}
+                    step="any"
                     placeholder="np. 7075.78"
                     value={customBase2}
                     onChange={(e) => setCustomBase2(e.target.value)}
@@ -793,7 +878,7 @@ export default function IntegratedCalculatorPage() {
                           type="number"
                           min={0.1}
                           max={1.0}
-                          step={0.1}
+                          step="any"
                           value={creatorFte}
                           onChange={(e) => setCreatorFte(Number(e.target.value))}
                           className="w-full rounded border border-slate-300 px-2 py-1 text-xs dark:border-slate-700"
@@ -825,7 +910,7 @@ export default function IntegratedCalculatorPage() {
                       <input
                         type="number"
                         min={0}
-                        step={100}
+                        step="any"
                         value={creatorJdgDeclared}
                         onChange={(e) => setCreatorJdgDeclared(Number(e.target.value))}
                         className="w-full rounded border border-slate-300 px-2 py-1 text-xs dark:border-slate-700"
@@ -838,7 +923,7 @@ export default function IntegratedCalculatorPage() {
                       <input
                         type="number"
                         min={0}
-                        step={100}
+                        step="any"
                         value={creatorJdgMin}
                         onChange={(e) => setCreatorJdgMin(Number(e.target.value))}
                         className="w-full rounded border border-slate-300 px-2 py-1 text-xs dark:border-slate-700"
@@ -855,7 +940,7 @@ export default function IntegratedCalculatorPage() {
                     <input
                       type="number"
                       min={0}
-                      step={0.01}
+                      step="any"
                       value={creatorPrevBase}
                       onChange={(e) => setCreatorPrevBase(Number(e.target.value))}
                       className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-xs dark:border-slate-700"
@@ -935,7 +1020,7 @@ export default function IntegratedCalculatorPage() {
               <input
                 type="number"
                 min={0}
-                step={10}
+                step="any"
                 value={contributionDebt}
                 onChange={(e) => setContributionDebt(Number(e.target.value))}
                 className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700"
@@ -1001,7 +1086,7 @@ export default function IntegratedCalculatorPage() {
                     type="checkbox"
                     checked={motherEarlyTransfer8Weeks}
                     onChange={(e) => setMotherEarlyTransfer8Weeks(e.target.checked)}
-                    className="h-4 w-4 accent-[#007834]"
+                    className="h-4 w-4 shrink-0 accent-[#007834]"
                   />
                   <InfoTooltip
                     label="Szczególna sytuacja matki: przekazanie macierzyńskiego ojcu już po 8 tyg. (art. 180 § 6/10 KP)"
@@ -1017,7 +1102,7 @@ export default function IntegratedCalculatorPage() {
                   type="checkbox"
                   checked={fatherPaternity}
                   onChange={(e) => setFatherPaternity(e.target.checked)}
-                  className="h-4 w-4 accent-[#007834]"
+                  className="h-4 w-4 shrink-0 accent-[#007834]"
                 />
                 <InfoTooltip
                   label="Uwzględnij urlop ojcowski (2 tygodnie, 100%)"
@@ -1037,7 +1122,7 @@ export default function IntegratedCalculatorPage() {
                 type="checkbox"
                 checked={hasZaZyciem}
                 onChange={(e) => setHasZaZyciem(e.target.checked)}
-                className="h-4 w-4 accent-[#007834]"
+                className="h-4 w-4 shrink-0 accent-[#007834]"
               />
               <InfoTooltip
                 label="Zaświadczenie „Za życiem” (65/67 tyg.)"
@@ -1050,7 +1135,7 @@ export default function IntegratedCalculatorPage() {
                 type="checkbox"
                 checked={premature}
                 onChange={(e) => setPremature(e.target.checked)}
-                className="h-4 w-4 accent-[#007834]"
+                className="h-4 w-4 shrink-0 accent-[#007834]"
               />
               <InfoTooltip
                 label="Wcześniak / hospitalizacja (uzupełniający urlop)"
@@ -1115,7 +1200,7 @@ export default function IntegratedCalculatorPage() {
                 type="checkbox"
                 checked={combineWork}
                 onChange={(e) => setCombineWork(e.target.checked)}
-                className="h-4 w-4 accent-[#007834]"
+                className="h-4 w-4 shrink-0 accent-[#007834]"
               />
               <InfoTooltip
                 label="Łączenie urlopu rodzicielskiego z pracą (maks. 1/2 etatu)"
@@ -1136,7 +1221,7 @@ export default function IntegratedCalculatorPage() {
                       type="number"
                       min={0.1}
                       max={0.5}
-                      step={0.1}
+                      step="any"
                       value={workFte}
                       onChange={(e) => setWorkFte(Number(e.target.value))}
                       className="w-full rounded border border-slate-300 px-2 py-1 text-xs dark:border-slate-700"
@@ -1164,7 +1249,7 @@ export default function IntegratedCalculatorPage() {
                     type="checkbox"
                     checked={workDuringExtendedPart}
                     onChange={(e) => setWorkDuringExtendedPart(e.target.checked)}
-                    className="h-3.5 w-3.5 accent-[#007834]"
+                    className="h-4 w-4 shrink-0 accent-[#007834]"
                   />
                   <InfoTooltip
                     label="Praca na część etatu również podczas części wydłużonej (art. 182¹ᶠ § 7 KP)"
@@ -1181,7 +1266,7 @@ export default function IntegratedCalculatorPage() {
                     type="checkbox"
                     checked={stillbirthOrEarlyDeath}
                     onChange={(e) => setStillbirthOrEarlyDeath(e.target.checked)}
-                    className="h-4 w-4 accent-[#007834]"
+                    className="h-4 w-4 shrink-0 accent-[#007834]"
                   />
                   <InfoTooltip
                     label="Szczególna sytuacja: urodzenie martwego dziecka / zgon w 1–8 tyg. (art. 180¹ § 1 KP)"

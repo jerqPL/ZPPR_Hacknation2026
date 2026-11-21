@@ -1,24 +1,22 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { PageHeader } from "@/components/PageHeader";
 import { api } from "@/lib/api";
 import type {
   BenefitScenario,
   InsuranceTitle,
-  IntegratedCalculatorResponse,
   PaymentVariant,
   PdfAnalysisResult,
   SampleCase,
 } from "@/lib/types";
 
+const PREFILL_STORAGE_KEY = "zppr-prefill-calculator";
+
 export default function SampleCasesPdfPage() {
+  const router = useRouter();
   const [cases, setCases] = useState<SampleCase[]>([]);
-  const [selectedCalc, setSelectedCalc] = useState<{
-    caseTitle: string;
-    expectedDecision?: string;
-    calc: IntegratedCalculatorResponse;
-  } | null>(null);
   const [pdfResult, setPdfResult] = useState<PdfAnalysisResult | null>(null);
 
   // Potwierdzane przez użytkownika pola z PDF (zamiast twardych domyślnych wartości)
@@ -38,32 +36,32 @@ export default function SampleCasesPdfPage() {
     api.getSampleCases().then(setCases).catch((e) => setError(String(e)));
   }, []);
 
-  const runSampleCase = async (c: SampleCase) => {
-    setError(null);
-    try {
-      const calc = await api.calculateIntegrated({
-        scenario: c.scenario,
-        insurance_title: c.insurance_title,
-        has_sickness_insurance_on_birth_date: c.insured_on_event_date,
-        children_count: c.children_count,
-        child_age_years: c.child_age_years ?? null,
-        foster_family_type: c.foster_family_type,
-        foster_deferred_school: c.foster_deferred_school,
-        has_za_zyciem_certificate: c.has_za_zyciem,
-        gross_monthly_salary: c.gross_monthly_salary,
-        custom_benefit_base: c.custom_benefit_base ?? null,
-        second_parent_gross_salary: c.second_parent_gross_salary ?? null,
-        second_parent_custom_base: c.second_parent_custom_base ?? null,
-        payment_variant: c.payment_variant,
-        mother_maternity_weeks: c.mother_maternity_weeks ?? null,
-        father_takes_parental_weeks: c.father_takes_parental_weeks,
-        father_takes_paternity_leave: c.father_takes_paternity_leave,
-        employer_insured_count: c.employer_insured_count,
-      });
-      setSelectedCalc({ caseTitle: c.title, expectedDecision: c.expected_decision, calc });
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Błąd wyliczenia sprawy");
-    }
+  const openInCalculator = (prefill: Record<string, unknown>) => {
+    sessionStorage.setItem(PREFILL_STORAGE_KEY, JSON.stringify(prefill));
+    router.push("/kalkulator");
+  };
+
+  const runSampleCase = (c: SampleCase) => {
+    openInCalculator({
+      sourceLabel: c.title,
+      scenario: c.scenario,
+      insurance_title: c.insurance_title,
+      has_sickness_insurance_on_birth_date: c.insured_on_event_date,
+      children_count: c.children_count,
+      child_age_years: c.child_age_years ?? null,
+      foster_family_type: c.foster_family_type,
+      foster_deferred_school: c.foster_deferred_school,
+      has_za_zyciem_certificate: c.has_za_zyciem,
+      gross_monthly_salary: c.gross_monthly_salary,
+      custom_benefit_base: c.custom_benefit_base ?? null,
+      second_parent_gross_salary: c.second_parent_gross_salary ?? null,
+      second_parent_custom_base: c.second_parent_custom_base ?? null,
+      payment_variant: c.payment_variant,
+      mother_maternity_weeks: c.mother_maternity_weeks ?? null,
+      father_takes_parental_weeks: c.father_takes_parental_weeks,
+      father_takes_paternity_leave: c.father_takes_paternity_leave,
+      employer_insured_count: c.employer_insured_count,
+    });
   };
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -89,26 +87,21 @@ export default function SampleCasesPdfPage() {
     }
   };
 
-  const runConfirmedPdfSimulation = async () => {
+  const runConfirmedPdfSimulation = () => {
     if (!pdfResult) return;
-    setError(null);
-    try {
-      const calc = await api.calculateIntegrated({
-        scenario: confirmScenario,
-        insurance_title: confirmTitle,
-        has_sickness_insurance_on_birth_date: confirmInsured,
-        children_count: Number(confirmChildren),
-        gross_monthly_salary: Number(confirmGross),
-        custom_benefit_base: confirmCustomBase ? Number(confirmCustomBase) : null,
-        payment_variant: confirmVariant,
-        employer_insured_count: Number(confirmEmployerCount),
-        father_takes_parental_weeks: 0,
-        father_takes_paternity_leave: false,
-      });
-      setSelectedCalc({ caseTitle: `Potwierdzone dane z PDF: ${pdfResult.filename}`, calc });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Błąd uruchomienia symulacji");
-    }
+    openInCalculator({
+      sourceLabel: `Dane z PDF: ${pdfResult.filename}`,
+      scenario: confirmScenario,
+      insurance_title: confirmTitle,
+      has_sickness_insurance_on_birth_date: confirmInsured,
+      children_count: Number(confirmChildren),
+      gross_monthly_salary: Number(confirmGross),
+      custom_benefit_base: confirmCustomBase ? Number(confirmCustomBase) : null,
+      payment_variant: confirmVariant,
+      employer_insured_count: Number(confirmEmployerCount),
+      father_takes_parental_weeks: 0,
+      father_takes_paternity_leave: false,
+    });
   };
 
   const statusBadge = (status: PdfAnalysisResult["verification_status"]) => {
@@ -245,7 +238,7 @@ export default function SampleCasesPdfPage() {
                     </label>
                     <input
                       type="number"
-                      step="0.01"
+                      step="any"
                       value={confirmCustomBase}
                       onChange={(e) => setConfirmCustomBase(e.target.value)}
                       className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1 text-xs dark:border-slate-700"
@@ -279,7 +272,7 @@ export default function SampleCasesPdfPage() {
                       type="checkbox"
                       checked={confirmInsured}
                       onChange={(e) => setConfirmInsured(e.target.checked)}
-                      className="h-3.5 w-3.5 accent-[#007834]"
+                      className="h-4 w-4 shrink-0 accent-[#007834]"
                     />
                     Potwierdzam podleganie ubezpieczeniu chorobowemu
                   </label>
@@ -344,43 +337,6 @@ export default function SampleCasesPdfPage() {
               ))}
             </div>
           </div>
-
-          {selectedCalc && (
-            <div className="rounded-xl border border-[#007834]/30 bg-[#e6f4ec]/50 p-5 text-xs dark:bg-[#007834]/20">
-              <p className="font-bold text-slate-900 dark:text-slate-100">
-                Wynik symulacji: {selectedCalc.caseTitle}
-              </p>
-              {selectedCalc.calc.eligible ? (
-                <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                  <div className="rounded bg-white p-3 dark:bg-[#111c17]">
-                    <span className="text-slate-500 dark:text-slate-400">Łączny wymiar</span>
-                    <p className="text-base font-bold text-[#005a27] dark:text-emerald-300">
-                      {selectedCalc.calc.total_weeks} tyg.
-                    </p>
-                  </div>
-                  <div className="rounded bg-white p-3 dark:bg-[#111c17]">
-                    <span className="text-slate-500 dark:text-slate-400">Podstawa wymiaru</span>
-                    <p className="text-base font-bold text-slate-900 dark:text-slate-100">
-                      {selectedCalc.calc.benefit_base_parent1.toFixed(2)} zł
-                    </p>
-                  </div>
-                  <div className="rounded bg-white p-3 dark:bg-[#111c17]">
-                    <span className="text-slate-500 dark:text-slate-400">Suma brutto</span>
-                    <p className="text-base font-bold text-slate-900 dark:text-slate-100">
-                      {selectedCalc.calc.total_estimated_gross_pln.toLocaleString("pl-PL")} zł
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                <p className="mt-2 font-semibold text-red-700 dark:text-red-300">
-                  ODMOWA: {selectedCalc.calc.ineligibility_reason}
-                </p>
-              )}
-              <p className="mt-2 text-slate-700 dark:text-slate-300">
-                <strong>Płatnik:</strong> {selectedCalc.calc.payer}
-              </p>
-            </div>
-          )}
         </section>
       </div>
     </div>

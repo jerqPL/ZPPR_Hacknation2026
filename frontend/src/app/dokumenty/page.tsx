@@ -334,7 +334,7 @@ export default function DocumentsPage() {
                     type="number"
                     min={0.1}
                     max={0.5}
-                    step={0.05}
+                    step="any"
                     value={workFte}
                     onChange={(e) => setWorkFte(Number(e.target.value))}
                     className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700"

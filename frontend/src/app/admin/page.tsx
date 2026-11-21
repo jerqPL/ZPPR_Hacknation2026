@@ -65,12 +65,12 @@ export default function AdminPanelPage() {
     });
   };
 
-  const fieldInput = (label: string, field: keyof LegalParameters, step = "1") => (
+  const fieldInput = (label: string, field: keyof LegalParameters, _step?: string) => (
     <div key={String(field)}>
       <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">{label}</label>
       <input
         type="number"
-        step={step}
+        step="any"
         value={Number(params?.[field] ?? 0)}
         onChange={(e) => updateNum(field, e.target.value)}
         className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700"
