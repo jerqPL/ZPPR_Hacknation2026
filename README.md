@@ -4,7 +4,7 @@ Nowoczesna aplikacja webowa (RWD) wspierająca przyszłych rodziców i rodziców
 
 ## Film demonstracyjny (Demo)
 
-- **Nagranie wideo (Full HD 1080p, 2 min 43 s):** [demo/zppr_demo.mp4](demo/zppr_demo.mp4)
+- **Nagranie wideo (Full HD 1080p, 2 min 29 s):** [demo/zppr_demo.mp4](demo/zppr_demo.mp4)
 - Prezentuje pełne działanie aplikacji: symulację logowania mObywatel i pobrania danych z ZUS (w tym zadłużenie JDG, e-ZLA i PUE/eZUS), świadczenia w ciąży, zintegrowany kalkulator zasiłkowy, parser wniosków PDF i sprawy demonstracyjne, kreator dokumentów/wniosków (w tym odpis USC), ryzyka, wsparcie charytatywne, panel administracyjny oraz responsywność (RWD) na urządzeniach mobilnych.
 
 ## Architektura i stos technologiczny

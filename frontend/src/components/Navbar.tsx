@@ -49,7 +49,7 @@ export function Navbar() {
               <Link
                 key={item.href}
                 href={item.href}
-                className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
+                className={`whitespace-nowrap rounded-md px-2.5 py-1.5 text-sm font-medium transition ${
                   active
                     ? "bg-[#e6f4ec] text-[#005a27] dark:bg-[#007834]/25 dark:text-emerald-300"
                     : "text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
@@ -62,7 +62,7 @@ export function Navbar() {
         </nav>
 
         {/* Theme toggle, user badge, mobile menu */}
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           <button
             type="button"
             onClick={toggleTheme}
@@ -74,7 +74,7 @@ export function Navbar() {
           </button>
 
           {user ? (
-            <div className="hidden items-center gap-2 rounded-full border border-[#007834]/30 bg-[#e6f4ec] px-3 py-1 text-xs font-medium text-[#005a27] dark:border-emerald-700/50 dark:bg-[#007834]/25 dark:text-emerald-200 sm:flex">
+            <div className="hidden items-center gap-2 whitespace-nowrap rounded-full border border-[#007834]/30 bg-[#e6f4ec] px-3 py-1 text-xs font-medium text-[#005a27] dark:border-emerald-700/50 dark:bg-[#007834]/25 dark:text-emerald-200 sm:flex">
               <ShieldCheck className="h-3.5 w-3.5" />
               <span>{user.full_name}</span>
               <button
@@ -88,7 +88,7 @@ export function Navbar() {
           ) : (
             <Link
               href="/pue-zus"
-              className="hidden rounded-lg bg-[#007834] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#005a27] sm:inline-flex"
+              className="hidden whitespace-nowrap rounded-lg bg-[#007834] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#005a27] sm:inline-flex"
             >
               Zaloguj przez mObywatel
             </Link>
